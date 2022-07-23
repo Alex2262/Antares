@@ -77,6 +77,7 @@ class Search:
 
         self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint64)
         self.history_moves = np.zeros((12, 64), dtype=np.uint64)
+        self.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
         
         self.follow_pv = False
         self.score_pv = False
@@ -357,7 +358,7 @@ def negamax(engine, position, alpha, beta, depth):
 def iterative_search(engine, position, compiling):
 
     original_side = position.side
-    original_hash_key = position.hash_key
+    original_hash_key = compute_hash(position)
 
     # Reset engine variables
     engine.stopped = False
@@ -385,7 +386,7 @@ def iterative_search(engine, position, compiling):
         engine.node_count = 0
         engine.current_search_depth = running_depth
         position.side = original_side
-        position.hash_key = original_hash_key
+        position.hash_key = nb.uint64(original_hash_key)
 
         # Enable following pv
         engine.follow_pv = True
@@ -404,7 +405,7 @@ def iterative_search(engine, position, compiling):
         beta = returned + ASPIRATION_VAL
 
         position.side = original_side
-        position.hash_key = original_hash_key
+        position.hash_key = nb.uint64(original_hash_key)
 
         # Add to total node counts
         node_sum += engine.node_count
@@ -417,10 +418,11 @@ def iterative_search(engine, position, compiling):
         best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
         best_score = returned if not engine.stopped else best_score
 
-        if not len(best_pv):
+        if len(best_pv) == 0:
             tt_value = probe_tt_entry(engine, position, alpha, beta, engine.max_depth + 1)
             if tt_value > USE_HASH_MOVE:
                 best_pv.append(get_uci_from_move(position, tt_value - USE_HASH_MOVE))
+            print(tt_value)
 
         with nb.objmode(end_time=nb.double):
             end_time = timeit.default_timer()

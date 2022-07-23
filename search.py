@@ -256,6 +256,9 @@ def negamax(engine, position, alpha, beta, depth):
         sort_next_move(moves, current_move_index)
         move = moves[current_move_index][0]
 
+        if current_move_index == 0:
+            best_move = move
+
         # Make the move
         attempt = make_move(position, move)
 
@@ -353,6 +356,8 @@ def negamax(engine, position, alpha, beta, depth):
 def iterative_search(engine, position):
 
     original_side = position.side
+    original_hash_key = position.hash_key
+
     # Reset engine variables
     engine.stopped = False
     engine.start_time = timeit.default_timer()
@@ -367,7 +372,7 @@ def iterative_search(engine, position):
 
     running_depth = 1
 
-    best_pv = ""
+    best_pv = []
     best_score = 0
 
     while running_depth <= engine.max_depth:
@@ -376,13 +381,13 @@ def iterative_search(engine, position):
         engine.node_count = 0
         engine.current_search_depth = running_depth
         position.side = original_side
+        position.hash_key = original_hash_key
 
         # Enable following pv
         engine.follow_pv = True
 
         # Negamax search
         returned = negamax(engine, position, alpha, beta, running_depth)
-
         # Reset the window
         if returned <= alpha or returned >= beta:
             alpha = -INF
@@ -392,6 +397,9 @@ def iterative_search(engine, position):
         # Adjust aspiration window
         alpha = returned - ASPIRATION_VAL
         beta = returned + ASPIRATION_VAL
+
+        position.side = original_side
+        position.hash_key = original_hash_key
 
         # Add to total node counts
         node_sum += engine.node_count
@@ -403,6 +411,11 @@ def iterative_search(engine, position):
 
         best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
         best_score = returned if not engine.stopped else best_score
+
+        if not len(best_pv):
+            tt_value = probe_tt_entry(engine, position, alpha, beta, engine.max_depth + 1)
+            if tt_value > USE_HASH_MOVE:
+                best_pv.append(get_uci_from_move(position, tt_value - USE_HASH_MOVE))
 
         if not engine.stopped:
             print(f"info depth {running_depth} score cp {returned} "
@@ -733,4 +746,20 @@ info depth 10 score cp 64 time 3003 nodes 769888 nps 500278 pv b1c3 b8c6 d2d4 d7
 info depth 11 score cp 69 time 9143 nodes 4556303 nps 662629 pv e2e4 e7e6 b1c3 b8c6 d2d4 d7d5 g1e2 g8f6 c1g5 f8b4 e2g3
 info depth 11 score cp 69 time 60000 nodes 38790260 nps 747477 pv e2e4 e7e6 b1c3 b8c6 d2d4 d7d5 g1e2 g8f6 c1g5 f8b4 e2g3
 bestmove e2e4
+
+bug fixes
+info depth 1 score cp 44 time 123 nodes 21 nps 169 pv b1c3
+info depth 2 score cp 0 time 124 nodes 60 nps 652 pv b1c3 g8f6
+info depth 3 score cp 44 time 124 nodes 240 nps 2576 pv g1f3 b8c6 b1c3
+info depth 4 score cp 0 time 128 nodes 1316 nps 12734 pv g1f3 b8c6 b1c3
+info depth 5 score cp 41 time 142 nodes 3785 nps 38159 pv d2d4 g8f6 g1f3 f6e4 f3e5
+info depth 6 score cp 41 time 149 nodes 4791 nps 68195 pv d2d4 b8c6 g1f3 g8f6
+info depth 7 score cp 29 time 202 nodes 33884 nps 218007 pv d2d4 d7d5 b1c3 g8f6 g1f3 b8d7 e2e3
+info depth 8 score cp 12 time 501 nodes 206689 nps 499958 pv b1c3 b8c6 g1f3 g8f6 d2d4 e7e6 f3e5 c6e5
+info depth 9 score cp 24 time 866 nodes 266991 nps 597815 pv d2d4 e7e6 b1c3 g8f6 g1f3 d7d5 e2e3 b8d7 f1b5
+info depth 10 score cp 13 time 3473 nodes 1961818 nps 713761 pv d2d4 d7d5 b1c3 g8f6 g1f3 b8c6 f3e5 c6e5 d4e5 f6g4
+info depth 11 score cp 23 time 6970 nodes 2660558 nps 737453 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 c1d2 g8f6
+info depth 11 score cp 23 time 60001 nodes 43813984 nps 815881 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 c1d2 g8f6
+bestmove b1c3
+
 '''

@@ -28,10 +28,10 @@ def evaluate(position):
             own_end_scores += ENDGAME_PST[piece][i]
 
         elif piece < 12:
-            opp_mid_piece_vals += PIECE_VALUES[piece-6]
+            opp_mid_piece_vals += PIECE_VALUES[piece - 6]
             opp_end_piece_vals += ENDGAME_PIECE_VALUES[piece - 6]
-            opp_mid_scores += OPP_PST[piece-6][i]
-            opp_end_scores += OPP_ENDGAME_PST[piece-6][i]
+            opp_mid_scores += OPP_PST[piece - 6][i]
+            opp_end_scores += OPP_ENDGAME_PST[piece - 6][i]
 
     if own_end_piece_vals < 1300:
         opp_score = opp_end_scores + opp_end_piece_vals
@@ -47,12 +47,15 @@ def evaluate(position):
 
 
 @nb.njit(cache=False)
-def score_move(engine, move):
+def score_move(engine, move, tt_move):
 
     if engine.score_pv:
         if engine.pv_table[0][engine.ply] == move:
             engine.score_pv = False
             return 30000
+
+    if move == tt_move:
+        return 30000
 
     score = 0
     standard_from_square = MAILBOX_TO_STANDARD[get_from_square(move)]
@@ -78,8 +81,8 @@ def score_move(engine, move):
             return engine.history_moves[selected][standard_to_square]
 
     if move_type == 3:  # Promotions
-        score += 20000
-        score += 2 * PIECE_VALUES[get_promotion_piece(move)]
+        score += 15000
+        score += PIECE_VALUES[get_promotion_piece(move)]
 
     elif move_type == 2:  # Castling
         score += 1000
@@ -87,7 +90,7 @@ def score_move(engine, move):
     elif move_type == 1:  # En Passant
         score += 2000
 
-    # score += PST[selected][standard_to_square] - PST[selected][standard_from_square]
+    score += PST[selected][standard_to_square] - PST[selected][standard_from_square]
 
     return score
 

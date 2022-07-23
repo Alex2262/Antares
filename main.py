@@ -27,7 +27,8 @@ def parse_go(msg, engine, turn):
         elif p == "movetime":
             t = int(v) / 2 / 1000
         elif p == "nodes":
-            n = int(v)
+            # n = int(v)
+            pass
         elif p == "wtime":
             if turn == "w":
                 t = int(v) / 25 / 1000
@@ -107,7 +108,7 @@ def main():
 
         if msg.startswith("go"):
             parse_go(msg, main_engine, turn)
-            iterative_search(main_engine, main_position, turn)
+            iterative_search(main_engine, main_position)
             continue
 
     sys.exit()

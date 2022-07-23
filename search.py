@@ -12,6 +12,7 @@ import timeit
 from evaluation import *
 from move_generator import *
 from position import *
+from transposition import *
 
 search_spec = [
     ("max_depth", nb.uint16),
@@ -104,95 +105,64 @@ def enable_pv_scoring(engine, moves):
         engine.follow_pv = True
 
 
-def compile_engine(engine, position):
-    start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-    position.parse_fen(start_fen)
+@nb.njit
+def qsearch(engine, position, alpha, beta, depth):
 
-    alpha = -1000000
-    beta = 1000000
-    returned = negamax(engine, position, alpha, beta, 2)
+    # Update the search progress every 1024 nodes
+    if engine.node_count % 1024 == 0:
+        update_search(engine)
 
-    return returned
+    # Increase the node count
+    engine.node_count += 1
 
+    # The stand pat:
+    # We assume that in a position there should always be a quiet evaluation,
+    # and we return this if it is better than the captures.
+    static_eval = evaluate(position)
 
-# An iterative search approach to negamax
-def iterative_search(engine, position, plr):
+    # Beta is the alpha (the best evaluation) of the previous node
+    if static_eval >= beta:
+        return beta
+    if depth == 0:
+        return static_eval
 
-    # Reset engine variables
-    engine.stopped = False
-    engine.start_time = timeit.default_timer()
-    engine.reset()
+    # If our static evaluation has improved after the last move.
+    alpha = max(alpha, static_eval)
 
-    # Total nodes
-    node_sum = 0
+    # Retrieving all pseudo legal captures as a list of [Move class]
+    moves = get_scored_captures(get_pseudo_legal_captures(position))
 
-    # Prepare window for negamax search
-    alpha = -1000000
-    beta = 1000000
+    # Iterate through the noisy moves (captures) and search recursively with qsearch (quiescence search)
+    for current_move_index in range(len(moves)):
+        sort_next_move(moves, current_move_index)
+        move = moves[current_move_index][0]
 
-    # Aspiration window value
-    aspiration_val = 50
-    running_depth = 1
-
-    best_pv = ""
-    best_score = 0
-
-    while running_depth <= engine.max_depth:
-        # Reset engine variables
-        engine.node_count = 0
-        engine.current_search_depth = running_depth
-
-        # Enable following pv
-        engine.follow_pv = True
-
-        # Negamax search
-        returned = negamax(engine, position, alpha, beta, running_depth)
-
-        # Expand the window
-        if returned <= alpha or returned >= beta:
-            # print("RETRY", returned)
-            alpha = -1000000
-            beta = 1000000
+        # Make the capture
+        attempt = make_capture(position, move)
+        if not attempt:
+            undo_capture(position, move)
             continue
 
-        # Adjust aspiration window
-        alpha = returned - aspiration_val
-        beta = returned + aspiration_val
+        flip_position(position)
 
-        # Add to total node counts
-        node_sum += engine.node_count
+        return_eval = -qsearch(engine, position, -beta, -alpha, depth - 1)
 
-        # Obtain principle variation line and print it
-        pv_line = []
-        for c in range(engine.pv_length[0]):
-            pv_line.append(get_uci_from_move(position, engine.pv_table[0][c]))
-            position.side ^= 1
+        flip_position(position)
+        undo_capture(position, move)
 
-        output_pv = " ".join(pv_line)
+        # beta cutoff
+        if return_eval >= beta:
+            return beta
 
-        best_pv = pv_line if not engine.stopped else best_pv
-        best_score = returned if not engine.stopped else best_score
+        alpha = max(alpha, return_eval)
 
-        if not engine.stopped:
-            print(f"info depth {running_depth} score cp {returned} "
-                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
-                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
-                  f"pv {output_pv}")
-
-            running_depth += 1
-        else:
-            print(f"info depth {running_depth-1} score cp {best_score} "
-                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
-                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
-                  f"pv {' '.join(best_pv)}")
-            print(f"bestmove {best_pv[0]}")
-            break
-
-    return
+    return alpha
 
 
 @nb.njit
 def negamax(engine, position, alpha, beta, depth):
+
+    # position.hash_key = compute_hash(position)
 
     # Initialize PV length
     engine.pv_length[engine.ply] = engine.ply
@@ -208,6 +178,22 @@ def negamax(engine, position, alpha, beta, depth):
     # Terminate search when a condition has been reached, usually a time limit.
     if engine.stopped:
         return 0
+
+    # Get a value from probe_tt_entry that will correspond to either returning a score immediately
+    # or returning no hash entry, or returning move int to sort
+    tt_value = probe_tt_entry(engine, position, alpha, beta, depth)
+    tt_move = NO_MOVE
+
+    # A score was given to return
+    if tt_value < NO_HASH_ENTRY:
+        return tt_value
+
+    # Use a tt entry move to sort moves
+    elif tt_value > USE_HASH_MOVE:
+        tt_move = tt_value - USE_HASH_MOVE
+
+    # Using a variable to record the hash flag
+    tt_hash_flag = HASH_FLAG_ALPHA
 
     # Used at the end of the negamax function to determine checkmates, stalemates, etc.
     legal_moves = 0
@@ -227,7 +213,7 @@ def negamax(engine, position, alpha, beta, depth):
 
         # Make the null move (flipping the position and clearing the ep square)
         flip_position(position)
-        position.ep_square = 0
+        make_null_move(position)
 
         engine.ply += 1
 
@@ -237,7 +223,7 @@ def negamax(engine, position, alpha, beta, depth):
 
         # Undoing the null move (flipping the position back and setting ep square to current ep square)
         flip_position(position)
-        position.ep_square = current_ep
+        undo_null_move(position, current_ep)
 
         if return_eval >= beta:
             return beta
@@ -250,7 +236,7 @@ def negamax(engine, position, alpha, beta, depth):
         enable_pv_scoring(engine, moves)
 
     # Score the moves but do not sort them yet
-    moves = get_scored_moves(engine, moves)
+    moves = get_scored_moves(engine, moves, tt_move)
 
     # Saving information from the current position without reference to successfully undo moves.
     current_own_castle_ability = np.full(2, True)
@@ -259,6 +245,9 @@ def negamax(engine, position, alpha, beta, depth):
     current_opp_castle_ability = np.full(2, True)
     current_opp_castle_ability[0] = position.opp_castle_ability[0]
     current_opp_castle_ability[1] = position.opp_castle_ability[1]
+
+    # Best move to save for TT
+    best_move = NO_MOVE
 
     # Iterate through moves and recursively search with Negamax
     for current_move_index in range(len(moves)):
@@ -317,7 +306,12 @@ def negamax(engine, position, alpha, beta, depth):
 
         # The move is better than other moves searched
         if return_eval > alpha:
+
             alpha = return_eval
+            best_move = move
+
+            # Exact flag reached
+            tt_hash_flag = HASH_FLAG_EXACT
 
             # Store history moves
             if not get_is_capture(move):
@@ -337,7 +331,9 @@ def negamax(engine, position, alpha, beta, depth):
                 if not get_is_capture(move):
                     engine.killer_moves[1][engine.ply] = engine.killer_moves[0][engine.ply]
                     engine.killer_moves[0][engine.ply] = move
-                break
+
+                record_tt_entry(engine, position, beta, HASH_FLAG_BETA, move, depth)
+                return beta
 
     # Stalemate: No legal moves and king is not in check
     if legal_moves == 0 and not in_check:
@@ -346,61 +342,91 @@ def negamax(engine, position, alpha, beta, depth):
     elif legal_moves == 0 and in_check:
         return -MATE_SCORE - depth
 
+    record_tt_entry(engine, position, alpha, tt_hash_flag, best_move, depth)
+
     # We return our best score possible. This is an 'All node' and we have failed low
     return alpha
 
 
-@nb.njit
-def qsearch(engine, position, alpha, beta, depth):
+# An iterative search approach to negamax
+def iterative_search(engine, position):
 
-    # Update the search progress every 1024 nodes
-    if engine.node_count % 1024 == 0:
-        update_search(engine)
+    # Reset engine variables
+    engine.stopped = False
+    engine.start_time = timeit.default_timer()
+    engine.reset()
 
-    # Increase the nodecount
-    engine.node_count += 1
+    # Total nodes
+    node_sum = 0
 
-    # The stand pat:
-    # We assume that in a position there should always be a quiet evaluation,
-    # and we return this if it is better than the captures.
-    static_eval = evaluate(position)
+    # Prepare window for negamax search
+    alpha = -1000000
+    beta = 1000000
 
-    # Beta is the alpha (the best evaluation) of the previous node
-    if static_eval >= beta:
-        return beta
-    if depth == 0:
-        return static_eval
+    running_depth = 1
 
-    # If our static evaluation has improved after the last move.
-    alpha = max(alpha, static_eval)
+    best_pv = ""
+    best_score = 0
 
-    # Retrieving all pseudo legal captures as a list of [Move class]
-    moves = get_scored_captures(get_pseudo_legal_captures(position))
+    while running_depth <= engine.max_depth:
+        # Reset engine variables
+        engine.node_count = 0
+        engine.current_search_depth = running_depth
 
-    # Iterate through the noisy moves (captures) and search recursively with qsearch (quiescence search)
-    for current_move_index in range(len(moves)):
-        sort_next_move(moves, current_move_index)
-        move = moves[current_move_index][0]
+        # Enable following pv
+        engine.follow_pv = True
 
-        # Make the capture
-        attempt = make_capture(position, move)
-        if not attempt:
-            undo_capture(position, move)
+        # Negamax search
+        returned = negamax(engine, position, alpha, beta, running_depth)
+
+        # Reset the window
+        if returned <= alpha or returned >= beta:
+            alpha = -INF
+            beta = INF
             continue
 
-        flip_position(position)
+        # Adjust aspiration window
+        alpha = returned - ASPIRATION_VAL
+        beta = returned + ASPIRATION_VAL
 
-        return_eval = -qsearch(engine, position, -beta, -alpha, depth - 1)
+        # Add to total node counts
+        node_sum += engine.node_count
+        # Obtain principle variation line and print it
+        pv_line = []
+        for c in range(engine.pv_length[0]):
+            pv_line.append(get_uci_from_move(position, engine.pv_table[0][c]))
+            position.side ^= 1
 
-        flip_position(position)
-        undo_capture(position, move)
+        best_pv = pv_line if not engine.stopped else best_pv
+        best_score = returned if not engine.stopped else best_score
 
-        # beta cutoff
-        if return_eval >= beta:
-            return beta
-        alpha = max(alpha, return_eval)
+        if not engine.stopped:
+            print(f"info depth {running_depth} score cp {returned} "
+                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
+                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
+                  f"pv {' '.join(best_pv)}")
 
-    return alpha
+            running_depth += 1
+        else:
+            print(f"info depth {running_depth-1} score cp {best_score} "
+                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
+                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
+                  f"pv {' '.join(best_pv)}")
+            print(f"bestmove {best_pv[0]}")
+            break
+
+    return
+
+
+def compile_engine(engine, position):
+    start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    position.parse_fen(start_fen)
+
+    alpha = -1000000
+    beta = 1000000
+    returned = negamax(engine, position, alpha, beta, 2)
+
+    return returned
 
 
 ''' No ordering
@@ -547,7 +573,7 @@ g1f3 g8f6 d2d4 d7d5 b1d2 e7e6 e2e3 b8d7 f1b5 a7a6 b5d3
 b1c3 e7e5
 '''
 
-''' Aspiration Windows !? -- Also included Q nodes in node count since that is the standard
+''' Aspiration Windows !! -- Also included Q nodes in node count since that is the standard
 info depth 1 score cp 44 time 0 nodes 3 nps 10 pv b1c3
 info depth 2 score cp 0 time 0 nodes 43 nps 161 pv b1c3 g8f6
 info depth 3 score cp 44 time 0 nodes 127 nps 607 pv b1c3 g8f6 g1f3
@@ -609,7 +635,9 @@ info depth 8 score cp 60 time 1064 nodes 261622 nps 309488 pv b1c3 g8f6 e2e4 d7d
 info depth 9 score cp 54 time 1527 nodes 360442 nps 451651 pv b1c3 g8f6 e2e4 b8c6 d2d4 d7d5 e4d5 f6d5 g1e2
 info depth 10 score cp 64 time 2566 nodes 802543 nps 581482 pv g1f3 g8f6 b1c3 e7e6 d2d4 b8c6 c1f4 d7d5 f3e5 f6e4
 info depth 11 score cp 64 time 12071 nodes 7311427 nps 729341 pv b1c3 e7e6 g1f3 d7d5 d2d4 g8f6 e2e3 b8d7 f1b5 a7a6 b5d3
-info depth 12 score cp 65 time 59882 nodes 37513705 nps 773475 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
+info depth 12 score cp 65 time 59882 nodes 37513705 nps 773475 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 
+    c1g5 f8e7
+    
 info depth 12 score cp 65 time 60001 nodes 1 nps 771947 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
 bestmove e2e4
 
@@ -625,7 +653,8 @@ info depth 8 score cp 60 time 690 nodes 261622 nps 477411 pv b1c3 g8f6 e2e4 d7d5
 info depth 9 score cp 54 time 1148 nodes 360442 nps 600652 pv b1c3 g8f6 e2e4 b8c6 d2d4 d7d5 e4d5 f6d5 g1e2
 info depth 10 score cp 64 time 2165 nodes 802543 nps 689136 pv b8c6 b1c3 g8f6 d2d3 e7e5 g1f3 f8c5 e2e4 c6d4 c3d5
 info depth 11 score cp 64 time 11508 nodes 7311427 nps 764972 pv g8f6 d2d3 b8c6 e2e4 e7e5 b1c3 d7d6 g1e2 c8g4 h2h3 g4e6
-info depth 12 score cp 65 time 57681 nodes 37513705 nps 802994 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
+info depth 12 score cp 65 time 57681 nodes 37513705 nps 802994 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 
+    c1g5 f8e7
 info depth 12 score cp 65 time 60000 nodes 1 nps 771953 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
 bestmove e2e4
 
@@ -641,10 +670,18 @@ info depth 8 score cp 60 time 431 nodes 261622 nps 764630 pv b1c3 g8f6 e2e4 d7d5
 info depth 9 score cp 54 time 861 nodes 360442 nps 801188 pv b1c3 g8f6 e2e4 b8c6 d2d4 d7d5 e4d5 f6d5 g1e2
 info depth 10 score cp 64 time 1862 nodes 802543 nps 801219 pv b8c6 b1c3 g8f6 d2d3 e7e5 g1f3 f8c5 e2e4 c6d4 c3d5
 info depth 11 score cp 64 time 10614 nodes 7311427 nps 829402 pv g8f6 d2d3 b8c6 e2e4 e7e5 b1c3 d7d6 g1e2 c8g4 h2h3 g4e6
-info depth 12 score cp 65 time 54082 nodes 37513705 nps 856432 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
+info depth 12 score cp 65 time 54082 nodes 37513705 nps 856432 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 
+    c1g5 f8e7
 info depth 12 score cp 65 time 60001 nodes 1 nps 771945 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
 bestmove e2e4
 
-info depth 12 score cp 65 time 1200001 nodes 1048079573 nps 911996 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
+info depth 12 score cp 65 time 1200001 nodes 1048079573 nps 911996 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 
+    c1g5 f8e7
+    
 bestmove e2e4
+
+
+HUGE BUG FIXED. Beta cutoffs were returning alpha instead of beta.
+No changes in nodes though?
+
 '''

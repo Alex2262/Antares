@@ -4,10 +4,15 @@ import numba as nb
 
 
 MAX_HASH_SIZE       = 0x400000
-NO_HASH_ENTRY       = 10000000
+NO_HASH_ENTRY       = 2000000
+USE_HASH_MOVE       = 3000000
 
-MATE_SCORE          = 100000
+NO_MOVE             = 0
+
 INF                 = 1000000
+MATE_SCORE          = 100000
+
+ASPIRATION_VAL      = 50
 
 # Search Constants
 FULL_DEPTH_MOVES    = 3
@@ -98,9 +103,9 @@ ENDGAME_PIECE_VALUES = np.array((96, 292, 304, 512, 936, 0))
 
 PST = np.array((
         (    0,   0,   0,   0,   0,   0,   0,   0,
-            90, 100, 100,  90,  90, 100, 100,  90,
+            82, 120,  86,  95,  85, 110,  45,  27,
             10,  14,  17,  24,  24,  17,  14,  10,
-             3,   4,  11,  16,  16,  11,   4,   3,
+             3,   4,  11,  16,  16,   9,   4,   3,
              0,  -2,  10,  15,  15,   3,   0,   0,
              2,   2,  -3,   4,   4,  -3,   2,   2,
              0,   0,   3, -26, -26,  12,   7,   0,
@@ -154,8 +159,8 @@ PST = np.array((
 
 ENDGAME_PST = np.array((
         (    0,   0,   0,   0,   0,   0,   0,   0,
-           105, 110, 110, 105, 105, 110, 110, 105,
-            80,  90,  80,  80,  80,  80,  90,  80,
+           105, 106, 110, 108, 105, 100, 104, 105,
+            80,  99,  80,  79,  69,  60,  79,  80,
              3,   4,   9,  16,  16,   9,   4,   3,
              0,  -2,   5,  15,  15,   5,   0,   0,
              2,   2,  -2,  -1,  -1,  -2,   2,   2,
@@ -229,7 +234,7 @@ SIDE_HASH_KEY = np.random.randint(1, 2 ** 64 - 1, dtype=np.uint64)
 
 # This allows for a structured array similar to a C struct
 NUMBA_HASH_TYPE = nb.from_dtype(np.dtype(
-    [("key", np.uint64), ("depth", np.uint8), ("flag", np.uint8), ("score", np.int64)]
+    [("key", np.uint64), ("score", np.int64), ("move", np.uint32), ("depth", np.int8), ("flag", np.uint8)]
 ))
 
 HASH_FLAG_EXACT, HASH_FLAG_ALPHA, HASH_FLAG_BETA = (0, 1, 2)

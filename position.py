@@ -359,11 +359,17 @@ def make_move(position, move):
 
     # Double pawn push
     if selected == 0 and to_square - from_square == -20:
+        if position.ep_square:
+            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
+
         position.ep_square = 109 - to_square  # 119 - (to_square + 10)
         position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]  # Set new EP hash
+
+    # Reset ep square since it is not a double pawn push
     else:
-        position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]  # Remove EP hash
-        position.ep_square = 0
+        if position.ep_square:
+            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]  # Remove EP hash
+            position.ep_square = 0
 
     # We first reset the castling right hash here
     castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
@@ -450,6 +456,8 @@ def undo_move(position, move, current_own_castle_ability, current_opp_castle_abi
     if position.ep_square != current_ep:
         position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
         position.ep_square = current_ep
+        if current_ep:
+            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[current_ep]]
 
     # We first reset the castling right hash here
     castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
@@ -505,6 +513,32 @@ def undo_capture(position, move):
 
     if selected == 5:
         position.own_king_position = from_square
+
+
+@nb.njit(cache=False)
+def make_null_move(position):
+
+    position.side ^= 1
+    position.hash_key ^= SIDE_HASH_KEY
+
+    if position.ep_square:
+        position.hash_key ^= EP_HASH_KEYS[position.ep_square]
+        position.ep_square = 0
+
+
+@nb.njit(cache=False)
+def undo_null_move(position, current_ep):
+
+    position.side ^= 1
+    position.hash_key ^= SIDE_HASH_KEY
+
+    if position.ep_square != current_ep:
+        position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
+        position.ep_square = current_ep
+        if current_ep:
+            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[current_ep]]
+
+
 
 
 

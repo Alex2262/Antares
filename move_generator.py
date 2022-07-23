@@ -1,10 +1,7 @@
-import numba as nb
-import numpy as np
-from numba.typed import List
-from utilities import *
-from move import *
+
+
 from evaluation import score_move, score_capture
-#from position import Position
+from move import *
 
 
 @nb.njit
@@ -91,11 +88,11 @@ def get_pseudo_legal_captures(position):
 
 
 @nb.njit
-def get_scored_moves(engine, moves):
+def get_scored_moves(engine, moves, tt_move):
     scored_moves = []
 
     for move in moves:
-        scored_moves.append((move, score_move(engine, move)))
+        scored_moves.append((move, score_move(engine, move, tt_move)))
 
     return scored_moves
 

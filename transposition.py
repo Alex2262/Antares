@@ -24,11 +24,11 @@ def probe_tt_entry(engine, position, alpha, beta, depth):
             if entry.flag == HASH_FLAG_EXACT:
                 return score
             if entry.flag == HASH_FLAG_ALPHA and entry.score <= alpha:
-                return alpha
+                return score
             if entry.flag == HASH_FLAG_BETA and entry.score >= beta:
-                return beta
-        else:
-            return USE_HASH_MOVE + entry.move
+                return score
+
+        return USE_HASH_MOVE + entry.move
 
     return NO_HASH_ENTRY
 
@@ -37,8 +37,12 @@ def probe_tt_entry(engine, position, alpha, beta, depth):
 def record_tt_entry(engine, position, score, flag, move, depth):
     index = position.hash_key % MAX_HASH_SIZE
 
-    engine.transposition_table[index].key = position.hash_key
-    engine.transposition_table[index].depth = depth
-    engine.transposition_table[index].flag = flag
-    engine.transposition_table[index].score = score
-    engine.transposition_table[index].move = move
+    if engine.transposition_table[index].key != position.hash_key\
+            or depth > engine.transposition_table[index].depth\
+            or flag == HASH_FLAG_EXACT:
+
+        engine.transposition_table[index].key = position.hash_key
+        engine.transposition_table[index].depth = depth
+        engine.transposition_table[index].flag = flag
+        engine.transposition_table[index].score = score
+        engine.transposition_table[index].move = move

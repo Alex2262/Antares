@@ -1,6 +1,7 @@
 
 from move import *
 from utilities import *         # contains Evaluation arrays
+#from search import Search
 
 
 @nb.njit
@@ -30,8 +31,8 @@ def evaluate(position):
         elif piece < 12:
             opp_mid_piece_vals += PIECE_VALUES[piece - 6]
             opp_end_piece_vals += ENDGAME_PIECE_VALUES[piece - 6]
-            opp_mid_scores += OPP_PST[piece - 6][i]
-            opp_end_scores += OPP_ENDGAME_PST[piece - 6][i]
+            opp_mid_scores += PST[piece - 6][i ^ 56]
+            opp_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
 
     if own_end_piece_vals < 1300:
         opp_score = opp_end_scores + opp_end_piece_vals
@@ -68,17 +69,17 @@ def score_move(engine, move, tt_move):
     if get_is_capture(move):
         score += 10000
         score += PIECE_VALUES[occupied - 6] - PIECE_VALUES[selected]
-        score += OPP_PST[occupied - 6][standard_to_square]
+        score += PST[occupied - 6][standard_to_square ^ 56]
     else:
         # score 1st killer move
         if engine.killer_moves[0][engine.ply] == move:
-            return 9000
+            score += 9000
         # score 2nd killer move
         elif engine.killer_moves[1][engine.ply] == move:
-            return 8000
+            score += 8000
         # score history move
         else:
-            return engine.history_moves[selected][standard_to_square]
+            score += engine.history_moves[selected][standard_to_square]
 
     if move_type == 3:  # Promotions
         score += 15000
@@ -107,7 +108,7 @@ def score_capture(move):
     occupied = get_occupied(move)
 
     score += 8 * (PIECE_VALUES[occupied - 6] - PIECE_VALUES[selected])
-    score += OPP_PST[occupied - 6][standard_to_square]
+    score += PST[occupied - 6][standard_to_square ^ 56]
 
     score += PST[selected][standard_to_square] - PST[selected][standard_from_square]
 

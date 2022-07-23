@@ -8,7 +8,7 @@ import threading
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci
-from position import Position, make_move
+from position import Position, make_move, flip_position
 from search import Search, iterative_search, compile_engine
 
 
@@ -65,7 +65,7 @@ def main():
             break
 
         elif msg == "uci" or msg.startswith("uciok"):
-            print("id name AntaresPy2.0")
+            print("id name AntaresPy2.1")
             print("id author Alexander_Tian")
             print("uciok")
             continue
@@ -102,9 +102,8 @@ def main():
                 formatted_move = get_move_from_uci(main_position, move)
                 make_move(main_position, formatted_move)
 
-                main_position.flip_position()
+                flip_position(main_position)
                 turn = "w" if turn == "b" else "b"
-                main_position.side ^= 1
 
         if msg.startswith("go"):
             parse_go(msg, main_engine, turn)

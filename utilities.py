@@ -3,7 +3,9 @@ import numpy as np
 import numba as nb
 
 
-MAX_HASH_SIZE       = 0x400000
+np.random.seed(1)
+
+MAX_HASH_SIZE       = 0x3640E2  # 32 mb
 NO_HASH_ENTRY       = 2000000
 USE_HASH_MOVE       = 3000000
 
@@ -208,24 +210,6 @@ ENDGAME_PST = np.array((
            -20, -20, -20, -20, -20, -20, -20, -20),
 ))
 
-OPP_PST = np.array((
-    tuple(PST[0][::-1]),
-    tuple(PST[1][::-1]),
-    tuple(PST[2][::-1]),
-    tuple(PST[3][::-1]),
-    tuple(PST[4][::-1]),
-    tuple(PST[5][::-1])
-))
-
-OPP_ENDGAME_PST = np.array((
-    tuple(ENDGAME_PST[0][::-1]),
-    tuple(ENDGAME_PST[1][::-1]),
-    tuple(ENDGAME_PST[2][::-1]),
-    tuple(ENDGAME_PST[3][::-1]),
-    tuple(ENDGAME_PST[4][::-1]),
-    tuple(ENDGAME_PST[5][::-1])
-))
-
 
 PIECE_HASH_KEYS = np.random.randint(1, 2**64 - 1, size=(12, 64), dtype=np.uint64)
 EP_HASH_KEYS = np.random.randint(1, 2**64 - 1, size=64, dtype=np.uint64)
@@ -233,8 +217,9 @@ CASTLE_HASH_KEYS = np.random.randint(1, 2 ** 64 - 1, size=16, dtype=np.uint64)
 SIDE_HASH_KEY = np.random.randint(1, 2 ** 64 - 1, dtype=np.uint64)
 
 # This allows for a structured array similar to a C struct
+# This is 18 bytes
 NUMBA_HASH_TYPE = nb.from_dtype(np.dtype(
-    [("key", np.uint64), ("score", np.int64), ("move", np.uint32), ("depth", np.int8), ("flag", np.uint8)]
+    [("key", np.uint64), ("score", np.int32), ("flag", np.uint8), ("move", np.uint32), ("depth", np.int8)]
 ))
 
 HASH_FLAG_EXACT, HASH_FLAG_ALPHA, HASH_FLAG_BETA = (0, 1, 2)

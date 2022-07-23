@@ -92,7 +92,7 @@ def get_scored_moves(engine, moves, tt_move):
     scored_moves = []
 
     for move in moves:
-        scored_moves.append((move, score_move(engine, move, tt_move)))
+        scored_moves.append((move, nb.int32(score_move(engine, move, tt_move))))
 
     return scored_moves
 

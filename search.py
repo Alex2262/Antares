@@ -42,7 +42,7 @@ class Search:
         # self.TRANSPOSITION_TABLE = {}
         # self.WIN_TABLE = {}
 
-        self.max_depth = 15  # seems this number is multiplied by 2
+        self.max_depth = 30
         self.max_qdepth = 4
         self.min_depth = 2
         self.current_search_depth = 0
@@ -353,14 +353,18 @@ def negamax(engine, position, alpha, beta, depth):
 
 
 # An iterative search approach to negamax
-def iterative_search(engine, position):
+@nb.njit
+def iterative_search(engine, position, compiling):
 
     original_side = position.side
     original_hash_key = position.hash_key
 
     # Reset engine variables
     engine.stopped = False
-    engine.start_time = timeit.default_timer()
+
+    with nb.objmode():  # In a numba function use objmode to use regular python
+        engine.start_time = timeit.default_timer()
+
     engine.reset()
 
     # Total nodes
@@ -372,7 +376,7 @@ def iterative_search(engine, position):
 
     running_depth = 1
 
-    best_pv = []
+    best_pv = ["" for _ in range(0)]
     best_score = 0
 
     while running_depth <= engine.max_depth:
@@ -388,6 +392,7 @@ def iterative_search(engine, position):
 
         # Negamax search
         returned = negamax(engine, position, alpha, beta, running_depth)
+
         # Reset the window
         if returned <= alpha or returned >= beta:
             alpha = -INF
@@ -417,33 +422,34 @@ def iterative_search(engine, position):
             if tt_value > USE_HASH_MOVE:
                 best_pv.append(get_uci_from_move(position, tt_value - USE_HASH_MOVE))
 
-        if not engine.stopped:
-            print(f"info depth {running_depth} score cp {returned} "
-                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
-                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
-                  f"pv {' '.join(best_pv)}")
+        with nb.objmode(end_time=nb.double):
+            end_time = timeit.default_timer()
 
-            running_depth += 1
-        else:
-            print(f"info depth {running_depth-1} score cp {best_score} "
-                  f"time {int((timeit.default_timer() - engine.start_time) * 1000)} nodes {engine.node_count} "
-                  f"nps {int(node_sum / (timeit.default_timer() - engine.start_time))} "
-                  f"pv {' '.join(best_pv)}")
-            print(f"bestmove {best_pv[0]}")
+        if engine.stopped:
+            running_depth -= 1
+
+        if not compiling:
+            print("info depth", running_depth, "score cp", returned,
+                  "time", int((end_time - engine.start_time) * 1000), "nodes", engine.node_count,
+                  "nps", int(node_sum / (end_time - engine.start_time)), "pv", ' '.join(best_pv))
+
+        running_depth += 1
+
+        if engine.stopped:
+            if not compiling:
+                print("bestmove", best_pv[0])
             break
-
-    return
 
 
 def compile_engine(engine, position):
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     position.parse_fen(start_fen)
 
-    alpha = -1000000
-    beta = 1000000
-    returned = negamax(engine, position, alpha, beta, 2)
+    engine.max_depth = 2
+    iterative_search(engine, position, True)
+    engine.max_depth = 30
 
-    return returned
+    return
 
 
 ''' No ordering

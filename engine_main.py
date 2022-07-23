@@ -30,7 +30,7 @@ def main():
 
     main_engine.max_time = 20
     main_engine.max_depth = 3
-    iterative_search(main_engine, main_position)
+    iterative_search(main_engine, main_position, False)
 
     print("\n----- ----- ----- ----- ----- -----\n")
 
@@ -39,7 +39,7 @@ def main():
     print(main_position.make_readable_board())
     main_engine.max_time = 60
     main_engine.max_depth = 15
-    iterative_search(main_engine, main_position)
+    iterative_search(main_engine, main_position, False)
 
     '''for i in range(1, 2):
         start = timeit.default_timer()

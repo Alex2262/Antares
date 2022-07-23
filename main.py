@@ -109,7 +109,7 @@ def main():
 
         if msg.startswith("go"):
             parse_go(msg, main_engine, turn)
-            iterative_search(main_engine, main_position)
+            iterative_search(main_engine, main_position, False)
             continue
 
     sys.exit()

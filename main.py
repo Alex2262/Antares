@@ -31,10 +31,10 @@ def parse_go(msg, engine, turn):
             pass
         elif p == "wtime":
             if turn == "w":
-                t = int(v) / 25 / 1000
+                t = int(v) / 20 / 1000
         elif p == "btime":
             if turn == "b":
-                t = int(v) / 25 / 1000
+                t = int(v) / 20 / 1000
 
     engine.max_time = t
     engine.max_depth = d
@@ -87,11 +87,13 @@ def main():
                 main_position.parse_fen(start_fen)
                 turn = "w"
                 next_idx = 2
+
             elif tokens[1] == "fen":
                 fen = " ".join(tokens[2:8])
                 main_position.parse_fen(fen)
                 turn = fen.strip().split()[1]
                 next_idx = 8
+
             else:
                 continue
 

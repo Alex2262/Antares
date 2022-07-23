@@ -77,7 +77,6 @@ class Search:
 
         self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint64)
         self.history_moves = np.zeros((12, 64), dtype=np.uint64)
-        self.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
         
         self.follow_pv = False
         self.score_pv = False
@@ -402,7 +401,7 @@ def iterative_search(engine, position):
             pv_line.append(get_uci_from_move(position, engine.pv_table[0][c]))
             position.side ^= 1
 
-        best_pv = pv_line if not engine.stopped else best_pv
+        best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
         best_score = returned if not engine.stopped else best_score
 
         if not engine.stopped:

@@ -5,7 +5,7 @@ import numba as nb
 
 np.random.seed(1)
 
-MAX_HASH_SIZE       = 0x3640E2  # 32 mb
+MAX_HASH_SIZE       = 0x3640E2  # 64 mb
 NO_HASH_ENTRY       = 2000000
 USE_HASH_MOVE       = 3000000
 

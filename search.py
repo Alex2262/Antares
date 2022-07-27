@@ -310,7 +310,9 @@ def negamax(engine, position, alpha, beta, depth):
                     engine.killer_moves[1][engine.ply] = engine.killer_moves[0][engine.ply]
                     engine.killer_moves[0][engine.ply] = move
 
-                record_tt_entry(engine, position, beta, HASH_FLAG_BETA, move, depth)
+                if -MATE_SCORE < alpha < MATE_SCORE:
+                    record_tt_entry(engine, position, alpha, HASH_FLAG_BETA, move, depth)
+
                 return alpha
 
         # Increase legal moves
@@ -323,7 +325,8 @@ def negamax(engine, position, alpha, beta, depth):
     elif legal_moves == 0 and in_check:
         return -MATE_SCORE - depth
 
-    record_tt_entry(engine, position, alpha, tt_hash_flag, best_move, depth)
+    if -MATE_SCORE < alpha < MATE_SCORE:
+        record_tt_entry(engine, position, alpha, tt_hash_flag, best_move, depth)
 
     # We return our best score possible. This is an 'All node' and we have failed low
     return alpha
@@ -404,7 +407,7 @@ def iterative_search(engine, position, compiling):
             running_depth -= 1
 
         if not compiling:
-            print("info depth", running_depth, "score cp", returned,
+            print("info depth", running_depth, "score cp", best_score,
                   "time", int((end_time - engine.start_time) * 1000), "nodes", engine.node_count,
                   "nps", int(node_sum / (end_time - engine.start_time)), "pv", ' '.join(best_pv))
 

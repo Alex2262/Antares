@@ -8,7 +8,7 @@ import threading
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci
-from position import Position, make_move, flip_position
+from position import Position, make_move, parse_fen
 from search import Search, iterative_search, compile_engine
 
 
@@ -76,7 +76,7 @@ def main():
             continue
 
         elif msg == "ucinewgame":
-            main_position.parse_fen(start_fen)
+            parse_fen(main_position, start_fen)
             turn = "w"
 
         elif msg.startswith("position"):
@@ -84,13 +84,13 @@ def main():
                 continue
 
             if tokens[1] == "startpos":
-                main_position.parse_fen(start_fen)
+                parse_fen(main_position, start_fen)
                 turn = "w"
                 next_idx = 2
 
             elif tokens[1] == "fen":
                 fen = " ".join(tokens[2:8])
-                main_position.parse_fen(fen)
+                parse_fen(main_position, start_fen)
                 turn = fen.strip().split()[1]
                 next_idx = 8
 
@@ -104,7 +104,7 @@ def main():
                 formatted_move = get_move_from_uci(main_position, move)
                 make_move(main_position, formatted_move)
 
-                flip_position(main_position)
+                main_position.side ^= 1
                 turn = "w" if turn == "b" else "b"
 
         if msg.startswith("go"):

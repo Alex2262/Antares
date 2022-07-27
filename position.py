@@ -34,10 +34,9 @@ PIECE_MATCHER = np.array([
 # Numba's experimental Jitclasses require info on the attributes of the class
 position_spec = [
     ("board", nb.int8[:]),  # Cannot be u-ints because subtraction of u-ints returns floats with numba
-    ("own_king_position", nb.int8),
-    ("opp_king_position", nb.int8),
-    ("own_castle_ability", nb.boolean[:]),
-    ("opp_castle_ability", nb.boolean[:]),
+    ("white_king_position", nb.int8),
+    ("black_king_position", nb.int8),
+    ("castle_ability_bits", nb.uint8),
     ("ep_square", nb.int8),
     ("side", nb.int8),
     ("hash_key", nb.uint64)
@@ -48,134 +47,21 @@ position_spec = [
 class Position:
     def __init__(self):
         self.board = np.zeros(120, dtype=np.int8)
-        self.own_king_position = 0
-        self.opp_king_position = 0
-        self.own_castle_ability = np.full(2, True)
-        self.opp_castle_ability = np.full(2, True)
+        self.white_king_position = 0
+        self.black_king_position = 0
+        self.castle_ability_bits = 0
         self.ep_square = 0
         self.side = 0
         self.hash_key = 0
 
-    # -- parses fen string to initialize position --
-    def parse_fen(self, fen_string):
 
-        fen_list = fen_string.strip().split()
-        fen_board = fen_list[0]
-        turn = fen_list[1]
-
-        # -- boundaries for 12x10 mailbox --
-        pos = 21
-        for i in range(21):
-            self.board[i] = PADDING
-
-        # -- parse board --
-        for i in fen_board:
-            if i == "/":
-                self.board[pos] = PADDING
-                self.board[pos+1] = PADDING
-                pos += 2
-            elif i.isdigit():
-                for j in range(ord(i) - 48):
-                    self.board[pos] = EMPTY
-                    pos += 1
-            elif i.isalpha():
-                idx = 0
-                if i.islower():
-                    idx = 6
-                piece = i.upper()
-                for j, p in enumerate(PIECE_MATCHER):
-                    if piece == p:
-                        idx += j
-                self.board[pos] = idx
-                if i == 'K':
-                    self.own_king_position = pos
-                elif i == 'k':
-                    self.opp_king_position = pos
-                pos += 1
-
-        # -- boundaries for 12x10 mailbox --
-        for i in range(21):
-            self.board[pos+i] = PADDING
-
-        for i in fen_list[2]:
-            if i == "K":
-                self.own_castle_ability[0] = True
-            elif i == "Q":
-                self.own_castle_ability[1] = True
-            elif i == "k":
-                self.opp_castle_ability[0] = True
-            elif i == "q":
-                self.opp_castle_ability[1] = True
-
-        # -- en passant square --
-        if len(fen_list[3]) > 1:
-            square = [8 - (ord(fen_list[3][1]) - 48), ord(fen_list[3][0]) - 97]
-
-            square = square[0] * 8 + square[1]
-
-            square = square // 8 * 10 + 21 + square % 8
-
-            self.ep_square = square
-        else:
-            self.ep_square = 0
-
-        self.side = 0
-        if turn == "b":
-            flip_position(self)
-            self.side = 1
-
-        self.hash_key = compute_hash(self)
-
-    def make_readable_board(self):
-        new_board = " "
-        for j, i in enumerate(self.board[21:100]):
-            if (j + 1) % 10 == 0:
-                new_board += "\n"
-            if i == PADDING:
-                new_board += " "
-                continue
-            if i == EMPTY:
-                new_board += ". "
-                continue
-            idx = i
-            piece = ""
-            if idx == 0:
-                piece = "\u265F "
-            elif idx == 1:
-                piece = "\u265E "
-            elif idx == 2:
-                piece = "\u265D "
-            elif idx == 3:
-                piece = "\u265C "
-            elif idx == 4:
-                piece = "\u265B "
-            elif idx == 5:
-                piece = "\u265A "
-            elif idx == 6:
-                piece = "\u2659 "
-            elif idx == 7:
-                piece = "\u2658 "
-            elif idx == 8:
-                piece = "\u2657 "
-            elif idx == 9:
-                piece = "\u2656 "
-            elif idx == 10:
-                piece = "\u2655 "
-            elif idx == 11:
-                piece = "\u2654 "
-            new_board += piece
-
-        new_board += "\n"
-        return new_board
-
-
-@nb.njit(nb.uint64(Position.class_type.instance_type))
+@nb.njit(nb.uint64(Position.class_type.instance_type), cache=True)
 def compute_hash(position):
     code = 0
 
     for i in range(64):
         pos = STANDARD_TO_MAILBOX[i]
-        if position.board[pos] > 11:
+        if position.board[pos] > BLACK_KING:
             continue
 
         code ^= PIECE_HASH_KEYS[position.board[pos]][i]
@@ -183,10 +69,7 @@ def compute_hash(position):
     if position.ep_square:
         code ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
 
-    castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
-        position.opp_castle_ability[0] << 2 | position.opp_castle_ability[1] << 3
-
-    code ^= CASTLE_HASH_KEYS[castle_bit]
+    code ^= CASTLE_HASH_KEYS[position.castle_ability_bits]
 
     if position.side:  # side 1 is black, 0 is white
         code ^= SIDE_HASH_KEY
@@ -194,84 +77,102 @@ def compute_hash(position):
     return code
 
 
-@nb.njit(cache=False)
-def flip_position(position):
-    position.board = np.flip(position.board)
-    for i in range(64):
-        pos = STANDARD_TO_MAILBOX[i]
-        if position.board[pos] < 6:  # own piece
-            position.board[pos] += 6
-        elif position.board[pos] < 12:  # opponent's piece
-            position.board[pos] -= 6
-
-    temp0 = 119-position.own_king_position
-    position.own_king_position = 119-position.opp_king_position
-    position.opp_king_position = temp0
-
-    temp0 = position.own_castle_ability[0]
-    temp1 = position.own_castle_ability[1]
-    position.own_castle_ability[0] = position.opp_castle_ability[0]
-    position.own_castle_ability[1] = position.opp_castle_ability[1]
-    position.opp_castle_ability[0] = temp0
-    position.opp_castle_ability[1] = temp1
-
-
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def is_attacked(position, pos):
     board = position.board
-    for piece in (4, 1):
-        for increment in OPP_ATK_INCREMENTS[piece]:
-            if increment == 0:
-                break
-            new_pos = pos
-            while True:
-                new_pos += increment
-                occupied = board[new_pos]
-                if occupied == PADDING or occupied < 6:  # standing on own piece or outside of board
+    if position.side == 0:
+        for piece in (WHITE_QUEEN, WHITE_KNIGHT):
+            for increment in BLACK_ATK_INCREMENTS[piece]:
+                if increment == 0:
                     break
-
-                if occupied < EMPTY:
-                    if piece == occupied - 6:
-                        return True
-
-                    if piece == 1:  # if we are checking with knight and opponent piece is not knight
+                new_pos = pos
+                while True:
+                    new_pos += increment
+                    occupied = board[new_pos]
+                    if occupied == PADDING or occupied < 6:  # standing on own piece or outside of board
                         break
-                    if occupied == 7:  # if we are checking with a queen and opponent piece is a knight
-                        break
-                    if occupied == 11:  # king
-                        if new_pos == pos + increment:
+
+                    if occupied < EMPTY:
+                        if piece == occupied - 6:
                             return True
-                        break
 
-                    if occupied == 6:  # pawn
-                        if new_pos == pos - 11 or \
-                                new_pos == pos - 9:
-                            return True
-                        break
+                        if piece == WHITE_KNIGHT:  # if we are checking with knight and opponent piece is not knight
+                            break
+                        if occupied == BLACK_KNIGHT:  # if we are checking with a queen and opponent piece is a knight
+                            break
+                        if occupied == BLACK_KING:  # king
+                            if new_pos == pos + increment:
+                                return True
+                            break
 
-                    if occupied == 8:  # bishop
-                        if increment in (-11, 11, 9, -9):
-                            return True
-                        break
-                    if occupied == 9:  # rook
-                        if increment in (-10, 1, 10, -1):
-                            return True
-                        break
+                        if occupied == BLACK_PAWN:  # pawn
+                            if new_pos == pos - 11 or \
+                                    new_pos == pos - 9:
+                                return True
+                            break
 
-                if piece == 1:  # if checking with knight
+                        if occupied == BLACK_BISHOP:  # bishop
+                            if increment in (-11, 11, 9, -9):
+                                return True
+                            break
+                        if occupied == BLACK_ROOK:  # rook
+                            if increment in (-10, 1, 10, -1):
+                                return True
+                            break
+
+                    if piece == WHITE_KNIGHT:  # if checking with knight
+                        break
+    else:
+        for piece in (BLACK_QUEEN, BLACK_KNIGHT):
+            for increment in WHITE_ATK_INCREMENTS[piece-BLACK_PAWN]:
+                if increment == 0:
                     break
+                new_pos = pos
+                while True:
+                    new_pos += increment
+                    occupied = board[new_pos]
+                    if occupied != EMPTY and occupied > WHITE_KING:  # standing on own piece or outside of board
+                        break
+
+                    if occupied < BLACK_PAWN:
+                        if piece == occupied + BLACK_PAWN:
+                            return True
+
+                        if piece == BLACK_KNIGHT:  # if we are checking with knight and opponent piece is not knight
+                            break
+                        if occupied == WHITE_KNIGHT:  # if we are checking with a queen and opponent piece is a knight
+                            break
+                        if occupied == WHITE_KING:  # king
+                            if new_pos == pos + increment:
+                                return True
+                            break
+
+                        if occupied == WHITE_PAWN:  # pawn
+                            if new_pos == pos + 11 or \
+                                    new_pos == pos + 9:
+                                return True
+                            break
+
+                        if occupied == WHITE_BISHOP:  # bishop
+                            if increment in (-11, 11, 9, -9):
+                                return True
+                            break
+                        if occupied == WHITE_ROOK:  # rook
+                            if increment in (-10, 1, 10, -1):
+                                return True
+                            break
+
+                    if piece == BLACK_KNIGHT:  # if checking with knight
+                        break
+
     return False
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def make_move(position, move):
 
-    # Switch side
-    position.side ^= 1
-    position.hash_key ^= SIDE_HASH_KEY
-
     # Get move info
-    castled_pos = np.array([-1, -1])
+    castled_pos = np.array([0, 0])
     from_square = get_from_square(move)
     to_square = get_to_square(move)
     selected = get_selected(move)
@@ -279,90 +180,89 @@ def make_move(position, move):
     move_type = get_move_type(move)
 
     # Normal move
-    if move_type == 0:
+    if move_type == MOVE_TYPE_NORMAL:
         # Set the piece to the target square and hash it
         position.board[to_square] = selected
-        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
+        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[to_square]]
 
     # En passant move
-    elif move_type == 1:
+    elif move_type == MOVE_TYPE_EP:
         # Set the piece to the target square and hash it
         position.board[to_square] = selected
-        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
+        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[to_square]]
 
         # Remove the en passant captured pawn and hash it
-        position.board[to_square + 10] = EMPTY
-        position.hash_key ^= PIECE_HASH_KEYS[6][MAILBOX_TO_STANDARD[to_square + 10]]
+        # If white to move, to_square - (0*20) + 10 == to_square + 10
+        # If black to move, to_square - (1*20) + 10 == to_square - 10
+        position.board[to_square - position.side * 20 + 10] = EMPTY
+        position.hash_key ^= PIECE_HASH_KEYS[
+            BLACK_PAWN - position.side * BLACK_PAWN][MAILBOX_TO_STANDARD[to_square - position.side * 20 + 10]]
 
     # Castling move
-    elif move_type == 2:
+    elif move_type == MOVE_TYPE_CASTLE:
         # Set the piece to the target square and hash it
         position.board[to_square] = selected
-        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
+        position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[to_square]]
 
         # Queen side castling
         if to_square < from_square:
-            # Store the squares needed for legality checking
-            castled_pos[0], castled_pos[1] = from_square, to_square + 1
-
-            # Move the rook and hash it
-            position.board[from_square - 1] = 3
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[from_square - 1]]
-
-            # Remove the rook from the source square and hash it
-            position.board[91] = EMPTY
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[91]]
-
+            castled_pos[0], castled_pos[1] = to_square - 2, to_square + 1  # A1/A8, D1/D8
         # King side castling
         else:
-            # Store the squares needed for legality checking
-            castled_pos[0], castled_pos[1] = from_square, to_square - 1
+            castled_pos[0], castled_pos[1] = to_square + 1, to_square - 1  # H1/H8, F1/F8
 
-            # Move the rook and hash it
-            position.board[from_square + 1] = 3
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[from_square + 1]]
+        # White Rook + position.side * 6 will calculate which side's rook will be used.
+        # Move the rook and hash it
+        position.board[castled_pos[1]] = WHITE_ROOK + position.side * BLACK_PAWN
+        position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK + position.side * BLACK_PAWN][
+            MAILBOX_TO_STANDARD[castled_pos[1]]]
 
-            # Remove the rook from the source square and hash it
-            position.board[98] = EMPTY
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[98]]
+        # Remove the rook from the source square and hash it
+        position.board[castled_pos[0]] = EMPTY
+        position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK + position.side * BLACK_PAWN][
+            MAILBOX_TO_STANDARD[castled_pos[0]]]
 
     # Promotion move
-    elif move_type == 3:
+    elif move_type == MOVE_TYPE_PROMOTION:
         # Get the promoted piece, set it in the new location, and hash it
         promoted_piece = get_promotion_piece(move)
         position.board[to_square] = promoted_piece
-        position.hash_key ^= PIECE_HASH_KEYS[promoted_piece][MAILBOX_TO_STANDARD[from_square]]
+        position.hash_key ^= PIECE_HASH_KEYS[promoted_piece][MAILBOX_TO_STANDARD[to_square]]
 
     # Remove the piece from the source square
     position.board[from_square] = EMPTY
-    position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[to_square]]
+    position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
 
     # Hash out the occupied piece if it is a capture
     if get_is_capture(move):
         position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
 
     # Change the king position for check detection
-    if selected == 5:
-        position.own_king_position = to_square
+    if selected == WHITE_KING:
+        position.white_king_position = to_square
+    elif selected == BLACK_KING:
+        position.black_king_position = to_square
 
     # Legal move checking.
     # Return False if we are in check after our move or castling isn't legal.
-    if is_attacked(position, position.own_king_position):
+    if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
         return False
-    elif castled_pos[0] != -1:
-        if is_attacked(position, castled_pos[0]):
+    elif castled_pos[0]:
+        # If we have castled, then we already checked to_square with is_attacked since the king moved.
+        # We then check the position of where the rook would be, and also where the king originally was
+        if is_attacked(position, castled_pos[1]):
             return False
-        elif is_attacked(position, castled_pos[1]):
+        elif is_attacked(position, from_square):
             return False
 
     # --- The move is legal ---
 
     # Double pawn push
-    if selected == 0 and to_square - from_square == -20:
+    if (selected == WHITE_PAWN or selected == BLACK_PAWN) and abs(to_square - from_square) == 20:
         if position.ep_square:
             position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
 
-        position.ep_square = 109 - to_square  # 119 - (to_square + 10)
+        position.ep_square = to_square - position.side * 20 + 10  # 119 - (to_square + 10)
         position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]  # Set new EP hash
 
     # Reset ep square since it is not a double pawn push
@@ -372,38 +272,39 @@ def make_move(position, move):
             position.ep_square = 0
 
     # We first reset the castling right hash here
-    castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
-                 position.opp_castle_ability[0] << 2 | position.opp_castle_ability[1] << 3
-    position.hash_key ^= CASTLE_HASH_KEYS[castle_bit]
+    position.hash_key ^= CASTLE_HASH_KEYS[position.castle_ability_bits]
 
-    # Then we update the castling rights if necessary
-    if selected == 5:
-        position.own_castle_ability[0] = False
-        position.own_castle_ability[1] = False
+    if selected == WHITE_KING:
+        position.castle_ability_bits &= ~(1 << 0)
+        position.castle_ability_bits &= ~(1 << 1)
+    elif selected == BLACK_KING:
+        position.castle_ability_bits &= ~(1 << 2)
+        position.castle_ability_bits &= ~(1 << 3)
 
-    if from_square == A1:
-        position.own_castle_ability[0] = False
-    elif from_square == H1:
-        position.own_castle_ability[1] = False
-    if to_square == A8:
-        position.opp_castle_ability[1] = False
-    elif to_square == H8:
-        position.opp_castle_ability[0] = False
+    # Update the castling rights if necessary
+    if from_square == H1:
+        position.castle_ability_bits &= ~(1 << 0)
+    elif from_square == A1:
+        position.castle_ability_bits &= ~(1 << 1)
+    if to_square == H8:
+        position.castle_ability_bits &= ~(1 << 2)
+    elif to_square == A8:
+        position.castle_ability_bits &= ~(1 << 3)
 
     # After that we re-add the castling right hash
-    castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
-                 position.opp_castle_ability[0] << 2 | position.opp_castle_ability[1] << 3
-    position.hash_key ^= CASTLE_HASH_KEYS[castle_bit]
+    position.hash_key ^= CASTLE_HASH_KEYS[position.castle_ability_bits]
+
+    # Switch hash side (actual side is switched in loop)
+    position.hash_key ^= SIDE_HASH_KEY
 
     return True
 
 
-@nb.njit(cache=False)
-def undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep):
+@nb.njit(cache=True)
+def undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key):
 
-    # Switch side
-    position.side ^= 1
-    position.hash_key ^= SIDE_HASH_KEY
+    # Restore hash
+    position.hash_key = current_hash_key
 
     # Get move info
     from_square = get_from_square(move)
@@ -413,75 +314,48 @@ def undo_move(position, move, current_own_castle_ability, current_opp_castle_abi
     move_type = get_move_type(move)
 
     # En Passant move
-    if move_type == 1:
+    if move_type == MOVE_TYPE_EP:
         # Place the en passant captured pawn back and hash it
-        position.board[to_square + 10] = 6
-        position.hash_key ^= PIECE_HASH_KEYS[6][MAILBOX_TO_STANDARD[to_square + 10]]
+        position.board[to_square - position.side * 20 + 10] = BLACK_PAWN - position.side * BLACK_PAWN
 
     # Castling move
-    if move_type == 2:
+    if move_type == MOVE_TYPE_CASTLE:
         # Queen side castle
         if to_square < from_square:
-            # Move the rook back and hash it
-            position.board[91] = 3
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[91]]
+            # Move the rook back
+            position.board[to_square - 2] = WHITE_ROOK + position.side * BLACK_PAWN
 
-            # Remove the rook from the destination square and hash it
+            # Remove the rook from the destination square
             position.board[from_square - 1] = EMPTY
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[from_square - 1]]
 
         # King side castle
         else:
-            # Move the rook back and hash it
-            position.board[98] = 3
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[98]]
+            # Move the rook back
+            position.board[to_square + 1] = WHITE_ROOK + position.side * BLACK_PAWN
 
-            # Remove the rook from the destination square and hash it
+            # Remove the rook from the destination square
             position.board[from_square + 1] = EMPTY
-            position.hash_key ^= PIECE_HASH_KEYS[3][MAILBOX_TO_STANDARD[from_square + 1]]
 
-    # Place occupied piece/value back in the destination square and hash it
-    # Set the source square back to the selected piece and hash it
-    position.hash_key ^= PIECE_HASH_KEYS[position.board[to_square]][MAILBOX_TO_STANDARD[to_square]]
-    position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
-
+    # Place occupied piece/value back in the destination square
+    # Set the source square back to the selected piece
     position.board[to_square] = occupied
     position.board[from_square] = selected
 
-    # If the move is a capture then un-hash the captured piece
-    if get_is_capture(move):
-        position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
-
     # The en passant square has changed
     if position.ep_square != current_ep:
-        position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
         position.ep_square = current_ep
-        if current_ep:
-            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[current_ep]]
 
-    # We first reset the castling right hash here
-    castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
-                 position.opp_castle_ability[0] << 2 | position.opp_castle_ability[1] << 3
-    position.hash_key ^= CASTLE_HASH_KEYS[castle_bit]
-
-    # Then we revert the castling rights
-    position.own_castle_ability[0] = current_own_castle_ability[0]
-    position.own_castle_ability[1] = current_own_castle_ability[1]
-
-    position.opp_castle_ability[0] = current_opp_castle_ability[0]
-    position.opp_castle_ability[1] = current_opp_castle_ability[1]
-
-    # After that we re-add the castling right hash
-    castle_bit = position.own_castle_ability[0] | position.own_castle_ability[1] << 1 | \
-                 position.opp_castle_ability[0] << 2 | position.opp_castle_ability[1] << 3
-    position.hash_key ^= CASTLE_HASH_KEYS[castle_bit]
+    # Revert the castling rights
+    position.castle_ability_bits = current_castle_ability_bits
 
     # Reset the king position if it has moved
-    if selected == 5:
-        position.own_king_position = from_square
+    if selected == WHITE_KING:
+        position.white_king_position = from_square
+    elif selected == BLACK_KING:
+        position.black_king_position = from_square
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def make_capture(position, move):
 
     from_square = get_from_square(move)
@@ -491,16 +365,18 @@ def make_capture(position, move):
     position.board[to_square] = selected
     position.board[from_square] = EMPTY
 
-    if selected == 5:
-        position.own_king_position = to_square
+    if selected == WHITE_KING:
+        position.white_king_position = to_square
+    elif selected == BLACK_KING:
+        position.black_king_position = to_square
 
-    if is_attacked(position, position.own_king_position):
+    if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
         return False
 
     return True
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def undo_capture(position, move):
 
     from_square = get_from_square(move)
@@ -511,34 +387,141 @@ def undo_capture(position, move):
     position.board[to_square] = occupied
     position.board[from_square] = selected
 
-    if selected == 5:
-        position.own_king_position = from_square
+    if selected == WHITE_KING:
+        position.white_king_position = from_square
+    elif selected == BLACK_KING:
+        position.black_king_position = from_square
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def make_null_move(position):
 
     position.side ^= 1
     position.hash_key ^= SIDE_HASH_KEY
 
     if position.ep_square:
-        position.hash_key ^= EP_HASH_KEYS[position.ep_square]
+        position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
         position.ep_square = 0
 
 
-@nb.njit(cache=False)
-def undo_null_move(position, current_ep):
+@nb.njit(cache=True)
+def undo_null_move(position, current_hash_key, current_ep):
 
     position.side ^= 1
-    position.hash_key ^= SIDE_HASH_KEY
-
-    if position.ep_square != current_ep:
-        position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[position.ep_square]]
-        position.ep_square = current_ep
-        if current_ep:
-            position.hash_key ^= EP_HASH_KEYS[MAILBOX_TO_STANDARD[current_ep]]
+    position.ep_square = current_ep
+    position.hash_key = current_hash_key
 
 
+@nb.njit(cache=True)
+def parse_fen(position, fen_string):
+    fen_list = fen_string.strip().split()
+    fen_board = fen_list[0]
+    turn = fen_list[1]
+
+    # -- boundaries for 12x10 mailbox --
+    pos = 21
+    for i in range(21):
+        position.board[i] = PADDING
+
+    # -- parse board --
+    for i in fen_board:
+        if i == "/":
+            position.board[pos] = PADDING
+            position.board[pos + 1] = PADDING
+            pos += 2
+        elif i.isdigit():
+            for j in range(ord(i) - 48):
+                position.board[pos] = EMPTY
+                pos += 1
+        elif i.isalpha():
+            idx = 0
+            if i.islower():
+                idx = 6
+            piece = i.upper()
+            for j, p in enumerate(PIECE_MATCHER):
+                if piece == p:
+                    idx += j
+            position.board[pos] = idx
+            if i == 'K':
+                position.white_king_position = pos
+            elif i == 'k':
+                position.black_king_position = pos
+            pos += 1
+
+    # -- boundaries for 12x10 mailbox --
+    for i in range(21):
+        position.board[pos + i] = PADDING
+
+    position.castle_ability_bits = 0
+    for i in fen_list[2]:
+        if i == "K":
+            position.castle_ability_bits |= 1
+        elif i == "Q":
+            position.castle_ability_bits |= 2
+        elif i == "k":
+            position.castle_ability_bits |= 4
+        elif i == "q":
+            position.castle_ability_bits |= 8
+
+    # -- en passant square --
+    if len(fen_list[3]) > 1:
+        square = [8 - (ord(fen_list[3][1]) - 48), ord(fen_list[3][0]) - 97]
+
+        square = square[0] * 8 + square[1]
+
+        position.ep_square = STANDARD_TO_MAILBOX[square]
+    else:
+        position.ep_square = 0
+
+    position.side = 0
+    if turn == "b":
+        position.side = 1
+
+    position.hash_key = compute_hash(position)
+
+
+@nb.njit(cache=True)
+def make_readable_board(position):
+    new_board = " "
+    for j, i in enumerate(position.board[21:100]):
+        if (j + 1) % 10 == 0:
+            new_board += "\n"
+        if i == PADDING:
+            new_board += " "
+            continue
+        if i == EMPTY:
+            new_board += ". "
+            continue
+        idx = i
+        piece = ""
+        if idx == 0:
+            piece = "\u265F "
+        elif idx == 1:
+            piece = "\u265E "
+        elif idx == 2:
+            piece = "\u265D "
+        elif idx == 3:
+            piece = "\u265C "
+        elif idx == 4:
+            piece = "\u265B "
+        elif idx == 5:
+            piece = "\u265A "
+        elif idx == 6:
+            piece = "\u2659 "
+        elif idx == 7:
+            piece = "\u2658 "
+        elif idx == 8:
+            piece = "\u2657 "
+        elif idx == 9:
+            piece = "\u2656 "
+        elif idx == 10:
+            piece = "\u2655 "
+        elif idx == 11:
+            piece = "\u2654 "
+        new_board += piece
+
+    new_board += "\n"
+    return new_board
 
 
 

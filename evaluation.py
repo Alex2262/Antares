@@ -1,62 +1,56 @@
 
 from move import *
 from utilities import *         # contains Evaluation arrays
-#from search import Search
 
 
-@nb.njit
+@nb.njit(cache=True)
 def evaluate(position):
-    own_mid_scores = 0
-    opp_mid_scores = 0
+    white_mid_scores = 0
+    black_mid_scores = 0
 
-    own_end_scores = 0
-    opp_end_scores = 0
+    white_end_scores = 0
+    black_end_scores = 0
 
-    own_mid_piece_vals = 0
-    opp_mid_piece_vals = 0
+    white_mid_piece_vals = 0
+    black_mid_piece_vals = 0
 
-    own_end_piece_vals = 0
-    opp_end_piece_vals = 0
+    white_end_piece_vals = 0
+    black_end_piece_vals = 0
 
     board = position.board
 
     for i in range(64):
         piece = board[STANDARD_TO_MAILBOX[i]]
-        if piece < 6:
-            own_mid_piece_vals += PIECE_VALUES[piece]
-            own_end_piece_vals += ENDGAME_PIECE_VALUES[piece]
-            own_mid_scores += PST[piece][i]
-            own_end_scores += ENDGAME_PST[piece][i]
+        if piece < BLACK_PAWN:
+            white_mid_piece_vals += PIECE_VALUES[piece]
+            white_end_piece_vals += ENDGAME_PIECE_VALUES[piece]
+            white_mid_scores += PST[piece][i]
+            white_end_scores += ENDGAME_PST[piece][i]
 
-        elif piece < 12:
-            opp_mid_piece_vals += PIECE_VALUES[piece - 6]
-            opp_end_piece_vals += ENDGAME_PIECE_VALUES[piece - 6]
-            opp_mid_scores += PST[piece - 6][i ^ 56]
-            opp_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
+        elif piece < EMPTY:
+            black_mid_piece_vals += PIECE_VALUES[piece - 6]
+            black_end_piece_vals += ENDGAME_PIECE_VALUES[piece - 6]
+            black_mid_scores += PST[piece - 6][i ^ 56]
+            black_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
 
-    if own_end_piece_vals < 1300:
-        opp_score = opp_end_scores + opp_end_piece_vals
+    if white_end_piece_vals < 1300:
+        white_score = white_end_scores + white_end_piece_vals
     else:
-        opp_score = opp_mid_scores + opp_mid_piece_vals
+        white_score = white_mid_scores + white_mid_piece_vals
 
-    if opp_end_piece_vals < 1300:
-        own_score = own_end_scores + own_end_piece_vals
+    if black_end_piece_vals < 1300:
+        black_score = black_end_scores + black_end_piece_vals
     else:
-        own_score = own_mid_scores + own_mid_piece_vals
+        black_score = black_mid_scores + black_mid_piece_vals
 
-    return own_score-opp_score
+    return (position.side * -2 + 1) * (white_score - black_score)
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def score_move(engine, move, tt_move):
 
-    if engine.score_pv:
-        if engine.pv_table[0][engine.ply] == move:
-            engine.score_pv = False
-            return 30000
-
     if move == tt_move:
-        return 30000
+        return 100000
 
     score = 0
     standard_from_square = MAILBOX_TO_STANDARD[get_from_square(move)]
@@ -66,37 +60,68 @@ def score_move(engine, move, tt_move):
     occupied = get_occupied(move)
     move_type = get_move_type(move)
 
-    if get_is_capture(move):
-        score += 10000
-        score += PIECE_VALUES[occupied - 6] - PIECE_VALUES[selected]
-        score += PST[occupied - 6][standard_to_square ^ 56]
-    else:
-        # score 1st killer move
-        if engine.killer_moves[0][engine.ply] == move:
-            score += 9000
-        # score 2nd killer move
-        elif engine.killer_moves[1][engine.ply] == move:
-            score += 8000
-        # score history move
+    if selected < BLACK_PAWN:
+        if get_is_capture(move):
+            score += 10000
+            score += PIECE_VALUES[occupied - BLACK_PAWN] - PIECE_VALUES[selected]
+            score += PST[occupied - BLACK_PAWN][standard_to_square ^ 56]
         else:
-            score += engine.history_moves[selected][standard_to_square]
+            # score 1st killer move
+            if engine.killer_moves[0][engine.ply] == move:
+                score += 9000
+            # score 2nd killer move
+            elif engine.killer_moves[1][engine.ply] == move:
+                score += 8000
+            # score history move
+            else:
+                score += engine.history_moves[selected][standard_to_square]
 
-    if move_type == 3:  # Promotions
-        score += 15000
-        score += PIECE_VALUES[get_promotion_piece(move)]
+        if move_type == 3:  # Promotions
+            score += 15000
+            score += PIECE_VALUES[get_promotion_piece(move)]
 
-    elif move_type == 2:  # Castling
-        score += 1000
+        elif move_type == 2:  # Castling
+            score += 1000
 
-    elif move_type == 1:  # En Passant
-        score += 2000
+        elif move_type == 1:  # En Passant
+            score += 2000
 
-    score += PST[selected][standard_to_square] - PST[selected][standard_from_square]
+        score += PST[selected][standard_to_square] - \
+                 PST[selected][standard_from_square]
+
+    else:
+        if get_is_capture(move):
+            score += 10000
+            score += PIECE_VALUES[occupied] - PIECE_VALUES[selected - BLACK_PAWN]
+            score += PST[occupied][standard_to_square]
+        else:
+            # score 1st killer move
+            if engine.killer_moves[0][engine.ply] == move:
+                score += 9000
+            # score 2nd killer move
+            elif engine.killer_moves[1][engine.ply] == move:
+                score += 8000
+            # score history move
+            else:
+                score += engine.history_moves[selected - BLACK_PAWN][standard_to_square]
+
+        if move_type == 3:  # Promotions
+            score += 15000
+            score += PIECE_VALUES[get_promotion_piece(move) - BLACK_PAWN]
+
+        elif move_type == 2:  # Castling
+            score += 1000
+
+        elif move_type == 1:  # En Passant
+            score += 2000
+
+        score += PST[selected - BLACK_PAWN][standard_to_square ^ 56] - \
+                 PST[selected - BLACK_PAWN][standard_from_square ^ 56]
 
     return score
 
 
-@nb.njit(cache=False)
+@nb.njit(cache=True)
 def score_capture(move):
 
     score = 0
@@ -107,9 +132,17 @@ def score_capture(move):
     selected = get_selected(move)
     occupied = get_occupied(move)
 
-    score += 8 * (PIECE_VALUES[occupied - 6] - PIECE_VALUES[selected])
-    score += PST[occupied - 6][standard_to_square ^ 56]
+    if selected < BLACK_PAWN:
+        score += 8 * (PIECE_VALUES[occupied - BLACK_PAWN] - PIECE_VALUES[selected])
+        score += PST[occupied - BLACK_PAWN][standard_to_square]
 
-    score += PST[selected][standard_to_square] - PST[selected][standard_from_square]
+        score += PST[selected][standard_to_square] - \
+                 PST[selected][standard_from_square]
+    else:
+        score += 8 * (PIECE_VALUES[occupied] - PIECE_VALUES[selected - BLACK_PAWN])
+        score += PST[occupied][standard_to_square ^ 56]
+
+        score += PST[selected - BLACK_PAWN][standard_to_square ^ 56] - \
+                 PST[selected - BLACK_PAWN][standard_from_square ^ 56]
 
     return score

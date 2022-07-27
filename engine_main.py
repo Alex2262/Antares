@@ -3,7 +3,7 @@
 This file is solely for testing purposes.
 The main file which handles uci is main.py
 """
-
+import position
 from cache_clearer import kill_numba_cache
 from perft import *
 from search import Search, iterative_search
@@ -15,38 +15,40 @@ def main():
     # kiwipete_fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "
     # test_3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "
     # test_4 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
-    # test_5 = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b - - 0 1"
+    # test_5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
 
     print("compiling...")
     start = timeit.default_timer()
     main_position = Position()
 
-    main_position.parse_fen(start_fen)
+    parse_fen(main_position, start_fen)
 
     main_engine = Search()
-    print(timeit.default_timer() - start)
 
-    print(main_position.make_readable_board())
+    print(make_readable_board(main_position))
 
     main_engine.max_time = 20
     main_engine.max_depth = 3
-    iterative_search(main_engine, main_position, False)
+    iterative_search(main_engine, main_position, True)
 
     print("\n----- ----- ----- ----- ----- -----\n")
+    parse_fen(main_position, start_fen)
 
-    main_position.parse_fen(start_fen)
-
-    print(main_position.make_readable_board())
+    print(timeit.default_timer() - start)
+    
     main_engine.max_time = 60
     main_engine.max_depth = 15
     iterative_search(main_engine, main_position, False)
 
-    '''for i in range(1, 2):
+    '''for i in range(1, 6):
         start = timeit.default_timer()
-        print(debug_perft(main_position, i), timeit.default_timer() - start)'''
+        returned = debug_perft(main_position, i)
+        print(f"NODES {returned[0]} CAPTURES {returned[1]} EP {returned[2]} CHECKS {returned[3]} "
+              f"PROMOTIONS {returned[4]} CASTLES {returned[5]} "
+              f"TIME {int((timeit.default_timer() - start) * 1000)}")'''
 
     # print(debug_perft(main_position, 5), timeit.default_timer() - start)
-    # uci_perft(main_position, 6)
+    # uci_perft(main_position, 2)
 
     '''print(PIECE_HASH_KEYS)
     print(SIDE_HASH_KEY)

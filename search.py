@@ -25,8 +25,6 @@ search_spec = [
     ("node_count", nb.uint64),
     ("pv_table", nb.uint64[:, :]),  # implementation of pv and pv scoring comes from TSCP engine
     ("pv_length", nb.uint64[:]),
-    ("follow_pv", nb.boolean),
-    ("score_pv", nb.boolean),
     ("killer_moves", nb.uint64[:, :]),
     ("history_moves", nb.uint64[:, :]),
     ("transposition_table", NUMBA_HASH_TYPE[:]),
@@ -55,8 +53,6 @@ class Search:
 
         self.pv_table = np.zeros((self.max_depth, self.max_depth), dtype=np.uint64)
         self.pv_length = np.zeros(self.max_depth, dtype=np.uint64)
-        self.follow_pv = False
-        self.score_pv = False
 
         # Killer moves [id][ply]
         self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint64)
@@ -67,42 +63,33 @@ class Search:
 
         self.stopped = False
 
-    def reset(self):
-        self.node_count = 0
-
-        self.ply = 0
-
-        self.pv_table = np.zeros((self.max_depth, self.max_depth), dtype=np.uint64)
-        self.pv_length = np.zeros(self.max_depth, dtype=np.uint64)
-
-        self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint64)
-        self.history_moves = np.zeros((12, 64), dtype=np.uint64)
-        self.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
-        
-        self.follow_pv = False
-        self.score_pv = False
-
-        self.stopped = False
-
         # self.aspiration_window = 65  # in centi pawns
 
 
 # Update the elapsed search time to determine when the search should be terminated.
+
+@nb.njit(cache=True)
+def reset(engine):
+    engine.node_count = 0
+
+    engine.ply = 0
+
+    engine.pv_table = np.zeros((engine.max_depth, engine.max_depth), dtype=np.uint64)
+    engine.pv_length = np.zeros(engine.max_depth, dtype=np.uint64)
+
+    engine.killer_moves = np.zeros((2, engine.max_depth), dtype=np.uint64)
+    engine.history_moves = np.zeros((12, 64), dtype=np.uint64)
+    engine.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
+
+    engine.stopped = False
+
+
 @nb.njit
 def update_search(engine):
     with nb.objmode(elapsed_time=nb.double):  # In a numba function use objmode to use regular python
         elapsed_time = timeit.default_timer() - engine.start_time
     if elapsed_time >= engine.max_time and engine.current_search_depth >= engine.min_depth:
         engine.stopped = True
-
-
-@nb.njit
-def enable_pv_scoring(engine, moves):
-    engine.follow_pv = False
-
-    if engine.pv_table[0][engine.ply] in moves:
-        engine.score_pv = True
-        engine.follow_pv = True
 
 
 @nb.njit
@@ -143,16 +130,16 @@ def qsearch(engine, position, alpha, beta, depth):
             undo_capture(position, move)
             continue
 
-        flip_position(position)
+        position.side ^= 1
 
         return_eval = -qsearch(engine, position, -beta, -alpha, depth - 1)
 
-        flip_position(position)
+        position.side ^= 1
         undo_capture(position, move)
 
         # beta cutoff
         if return_eval >= beta:
-            return return_eval
+            return return_eval  # fail soft
 
         alpha = max(alpha, return_eval)
 
@@ -161,8 +148,6 @@ def qsearch(engine, position, alpha, beta, depth):
 
 @nb.njit
 def negamax(engine, position, alpha, beta, depth):
-
-    position.hash_key = compute_hash(position)
 
     # Initialize PV length
     engine.pv_length[engine.ply] = engine.ply
@@ -197,14 +182,16 @@ def negamax(engine, position, alpha, beta, depth):
 
     # Used at the end of the negamax function to determine checkmates, stalemates, etc.
     legal_moves = 0
-    in_check = is_attacked(position, position.own_king_position)
+    in_check = is_attacked(position,
+                           position.black_king_position if position.side else position.white_king_position)
 
     # Check extension
     if in_check:
         depth += 1
 
-    # Saving EP information ahead for null moves
+    # Saving EP and hash information ahead for null moves
     current_ep = position.ep_square
+    current_hash_key = position.hash_key
 
     # Null move pruning
     # We give the opponent an extra move and if they are not able to make their position
@@ -212,7 +199,6 @@ def negamax(engine, position, alpha, beta, depth):
     if depth >= 3 and not in_check and engine.ply:
 
         # Make the null move (flipping the position and clearing the ep square)
-        flip_position(position)
         make_null_move(position)
 
         engine.ply += 1
@@ -221,9 +207,8 @@ def negamax(engine, position, alpha, beta, depth):
         return_eval = -negamax(engine, position, -beta, -beta + 1, depth - 1 - NULL_MOVE_REDUCTION)
         engine.ply -= 1
 
-        # Undoing the null move (flipping the position back and setting ep square to current ep square)
-        flip_position(position)
-        undo_null_move(position, current_ep)
+        # Undoing the null move (flipping the position back and resetting ep and hash)
+        undo_null_move(position, current_hash_key, current_ep)
 
         if return_eval >= beta:
             return beta
@@ -231,20 +216,11 @@ def negamax(engine, position, alpha, beta, depth):
     # Retrieving the pseudo legal moves in the current position as a list of integers
     moves = get_pseudo_legal_moves(position)
 
-    # Check if we are following the PV line
-    if engine.follow_pv:
-        enable_pv_scoring(engine, moves)
-
     # Score the moves but do not sort them yet
     moves = get_scored_moves(engine, moves, tt_move)
 
     # Saving information from the current position without reference to successfully undo moves.
-    current_own_castle_ability = np.full(2, True)
-    current_own_castle_ability[0] = position.own_castle_ability[0]
-    current_own_castle_ability[1] = position.own_castle_ability[1]
-    current_opp_castle_ability = np.full(2, True)
-    current_opp_castle_ability[0] = position.opp_castle_ability[0]
-    current_opp_castle_ability[1] = position.opp_castle_ability[1]
+    current_castle_ability_bits = position.castle_ability_bits
 
     # Best move to save for TT
     best_move = NO_MOVE
@@ -265,12 +241,12 @@ def negamax(engine, position, alpha, beta, depth):
 
         # The move put us in check, therefore it was not legal, and we must disregard it
         if not attempt:
-            undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+            undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
             continue
 
         # We proceed since the move is legal
         # Flip the position for the opposing player
-        flip_position(position)
+        position.side ^= 1
 
         # increase ply
         engine.ply += 1
@@ -303,8 +279,8 @@ def negamax(engine, position, alpha, beta, depth):
         engine.ply -= 1
 
         # Flip the position back to us and undo the move
-        flip_position(position)
-        undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+        position.side ^= 1
+        undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
 
         # The move is better than other moves searched
         if return_eval > alpha:
@@ -366,7 +342,7 @@ def iterative_search(engine, position, compiling):
     with nb.objmode():  # In a numba function use objmode to use regular python
         engine.start_time = timeit.default_timer()
 
-    engine.reset()
+    reset(engine)
 
     # Total nodes
     node_sum = 0
@@ -387,9 +363,6 @@ def iterative_search(engine, position, compiling):
         engine.current_search_depth = running_depth
         position.side = original_side
         position.hash_key = nb.uint64(original_hash_key)
-
-        # Enable following pv
-        engine.follow_pv = True
 
         # Negamax search
         returned = negamax(engine, position, alpha, beta, running_depth)
@@ -412,7 +385,7 @@ def iterative_search(engine, position, compiling):
         # Obtain principle variation line and print it
         pv_line = []
         for c in range(engine.pv_length[0]):
-            pv_line.append(get_uci_from_move(position, engine.pv_table[0][c]))
+            pv_line.append(get_uci_from_move(engine.pv_table[0][c]))
             position.side ^= 1
 
         best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
@@ -421,7 +394,7 @@ def iterative_search(engine, position, compiling):
         if len(best_pv) == 0:
             tt_value = probe_tt_entry(engine, position, alpha, beta, engine.max_depth + 1)
             if tt_value > USE_HASH_MOVE:
-                best_pv.append(get_uci_from_move(position, tt_value - USE_HASH_MOVE))
+                best_pv.append(get_uci_from_move(tt_value - USE_HASH_MOVE))
             print(tt_value)
 
         with nb.objmode(end_time=nb.double):
@@ -445,7 +418,7 @@ def iterative_search(engine, position, compiling):
 
 def compile_engine(engine, position):
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-    position.parse_fen(start_fen)
+    parse_fen(position, start_fen)
 
     engine.max_depth = 2
     iterative_search(engine, position, True)
@@ -766,8 +739,50 @@ info depth 7 score cp 29 time 202 nodes 33884 nps 218007 pv d2d4 d7d5 b1c3 g8f6 
 info depth 8 score cp 12 time 501 nodes 206689 nps 499958 pv b1c3 b8c6 g1f3 g8f6 d2d4 e7e6 f3e5 c6e5
 info depth 9 score cp 24 time 866 nodes 266991 nps 597815 pv d2d4 e7e6 b1c3 g8f6 g1f3 d7d5 e2e3 b8d7 f1b5
 info depth 10 score cp 13 time 3473 nodes 1961818 nps 713761 pv d2d4 d7d5 b1c3 g8f6 g1f3 b8c6 f3e5 c6e5 d4e5 f6g4
-info depth 11 score cp 23 time 6970 nodes 2660558 nps 737453 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 c1d2 g8f6
-info depth 11 score cp 23 time 60001 nodes 43813984 nps 815881 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 c1d2 g8f6
+info depth 11 score cp 23 time 6970 nodes 2660558 nps 737453 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 
+c1d2 g8f6
+info depth 11 score cp 23 time 60001 nodes 43813984 nps 815881 pv b1c3 e7e6 g1f3 b8c6 e2e4 d7d5 d2d3 d5e4 c3e4 f8b4 
+c1d2 g8f6
 bestmove b1c3
 
+
+HUGE CHANGES. flip_position() removed, move_gen and all make_move undo_move functions changed.
+Incremental hashing is fixed.
+info depth 1 score cp 44 time 754 nodes 21 nps 27 pv b1c3
+info depth 2 score cp 0 time 755 nodes 60 nps 107 pv b1c3 b8c6
+info depth 3 score cp 44 time 755 nodes 163 nps 322 pv b1c3 g8f6 g1f3
+info depth 4 score cp 0 time 757 nodes 1343 nps 2094 pv b1c3 g8f6 g1f3 b8c6
+info depth 5 score cp 42 time 761 nodes 2998 nps 6024 pv d2d4 b8c6 g1f3 g8f6 b1d2
+info depth 6 score cp 1 time 776 nodes 12845 nps 22460 pv g1f3 g8f6 d2d4 b8c6
+info depth 7 score cp 30 time 789 nodes 15226 nps 41373 pv g1f3 g8f6 d2d4 d7d5 b1d2 b8d7 e2e3
+info depth 8 score cp 1 time 879 nodes 90656 nps 140242 pv e2e3 b8c6 g1f3 g8f6
+info depth 9 score cp 25 time 1127 nodes 260358 nps 340410 pv g1f3 d7d5 d2d4 g8f6 b1d2 b8d7 e2e3
+info depth 10 score cp 14 time 1431 nodes 315590 nps 488377 pv g1f3 d7d5 d2d4 g8f6 b1c3 b8d7 c1f4 e7e6 f3e5 f6e4
+info depth 11 score cp 30 time 1923 nodes 542702 nps 645741 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 b1d2 a7a6 f3e5 d7e5 d4e5
+info depth 12 score cp 34 time 7538 nodes 6043636 nps 966415 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 b1d2 f6e4 f1b5 e4d2
+ c1d2 e7e6
+ 
+info depth 13 score cp 21 time 44051 nodes 39736081 nps 1067423 pv d2d4 e7e6 e2e4 b8c6 b1c3 g8f6 g1e2 d7d5 e4d5
+info depth 13 score cp 0 time 60000 nodes 17928359 nps 1082486 pv d2d4 e7e6 e2e4 b8c6 b1c3 g8f6 g1e2 d7d5 e4d5
+bestmove d2d4
+
+tt move scoring changed from 30000 to 100000; pv scoring removed
+info depth 1 score cp 44 time 115 nodes 21 nps 181 pv b1c3
+info depth 2 score cp 0 time 116 nodes 60 nps 697 pv b1c3 b8c6
+info depth 3 score cp 44 time 116 nodes 163 nps 2098 pv b1c3 g8f6 g1f3
+info depth 4 score cp 0 time 118 nodes 1343 nps 13349 pv b1c3 g8f6 g1f3 b8c6
+info depth 5 score cp 42 time 122 nodes 2998 nps 37386 pv d2d4 b8c6 g1f3 g8f6 b1d2
+info depth 6 score cp 1 time 169 nodes 12845 nps 103134 pv g1f3 g8f6 d2d4 b8c6
+info depth 7 score cp 30 time 197 nodes 15225 nps 165195 pv g1f3 g8f6 d2d4 d7d5 b1d2 b8d7 e2e3
+info depth 8 score cp 1 time 288 nodes 90656 nps 428153 pv e2e3 b8c6 g1f3 g8f6
+info depth 9 score cp 25 time 530 nodes 260466 nps 724069 pv g1f3 d7d5 d2d4 g8f6 b1d2 b8d7 e2e3
+info depth 10 score cp 14 time 819 nodes 315666 nps 853777 pv g1f3 d7d5 d2d4 g8f6 b1c3 b8d7 c1f4 e7e6 f3e5 f6e4
+info depth 11 score cp 30 time 1287 nodes 542463 nps 964635 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 b1d2 a7a6 f3e5 d7e5 d4e5
+info depth 12 score cp 27 time 3299 nodes 2310499 nps 1076531 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 f1d3 e7e6 e1g1 f8b4
+ c1d2 b4d6
+info depth 13 score cp 26 time 19586 nodes 18783385 nps 1140394 pv e2e4 b8c6 g1f3 e7e6 b1c3 g8f6 e4e5 f6d5 c3d5 e6d5
+ d2d4 f8b4 c2c3 b4e7
+info depth 13 score cp 12 time 60000 nodes 47812719 nps 1169127 pv e2e4 b8c6 g1f3 e7e6 b1c3 g8f6 e4e5 f6d5 c3d5 e6d5
+ d2d4 f8b4 c2c3 b4e7
+bestmove e2e4
 '''

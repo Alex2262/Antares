@@ -1,9 +1,8 @@
 
-import numba as nb
-import numpy as np
 import timeit
-from position import *
+
 from move_generator import *
+from position import *
 
 
 @nb.njit(cache=False)
@@ -16,12 +15,8 @@ def debug_perft(position, depth):
 
     # -----
     current_ep = position.ep_square
-    current_own_castle_ability = np.full(2, True)
-    current_own_castle_ability[0] = position.own_castle_ability[0]
-    current_own_castle_ability[1] = position.own_castle_ability[1]
-    current_opp_castle_ability = np.full(2, True)
-    current_opp_castle_ability[0] = position.opp_castle_ability[0]
-    current_opp_castle_ability[1] = position.opp_castle_ability[1]
+    current_castle_ability_bits = position.castle_ability_bits
+    current_hash_key = position.hash_key
 
     amt = 0
     capture_amt = 0
@@ -31,13 +26,14 @@ def debug_perft(position, depth):
     castle_amt = 0
 
     for move in moves:
+
         attempt = make_move(position, move)
 
         if not attempt:
-            undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+            undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
             continue
 
-        flip_position(position)
+        position.side ^= 1
 
         if depth == 1:
 
@@ -45,15 +41,15 @@ def debug_perft(position, depth):
 
             if get_is_capture(move):
                 capture_amt += 1
-            elif move_type == 1:
+            elif move_type == MOVE_TYPE_EP:
                 capture_amt += 1
                 ep_amt += 1
-            elif move_type == 3:
+            elif move_type == MOVE_TYPE_PROMOTION:
                 promotion_amt += 1
-            elif move_type == 2:
+            elif move_type == MOVE_TYPE_CASTLE:
                 castle_amt += 1
 
-            if is_attacked(position, position.own_king_position):
+            if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
                 check_amt += 1
 
         returned = debug_perft(position, depth - 1)
@@ -65,8 +61,8 @@ def debug_perft(position, depth):
         promotion_amt += returned[4]
         castle_amt += returned[5]
 
-        flip_position(position)
-        undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+        position.side ^= 1
+        undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
 
     return amt, capture_amt, ep_amt, check_amt, promotion_amt, castle_amt
 
@@ -80,12 +76,8 @@ def fast_perft(position, depth):
 
     # -----
     current_ep = position.ep_square
-    current_own_castle_ability = np.full(2, True)
-    current_own_castle_ability[0] = position.own_castle_ability[0]
-    current_own_castle_ability[1] = position.own_castle_ability[1]
-    current_opp_castle_ability = np.full(2, True)
-    current_opp_castle_ability[0] = position.opp_castle_ability[0]
-    current_opp_castle_ability[1] = position.opp_castle_ability[1]
+    current_castle_ability_bits = position.castle_ability_bits
+    current_hash_key = position.hash_key
 
     amt = 0
 
@@ -94,15 +86,14 @@ def fast_perft(position, depth):
         attempt = make_move(position, move)
 
         if not attempt:
-            undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+            undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
             continue
 
-        flip_position(position)
-
+        position.side ^= 1
         amt += fast_perft(position, depth - 1)
+        position.side ^= 1
 
-        flip_position(position)
-        undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+        undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
 
     return amt
 
@@ -122,32 +113,27 @@ def uci_perft(position, depth):
 
     # -----
     current_ep = position.ep_square
-    current_own_castle_ability = np.full(2, True)
-    current_own_castle_ability[0] = position.own_castle_ability[0]
-    current_own_castle_ability[1] = position.own_castle_ability[1]
-    current_opp_castle_ability = np.full(2, True)
-    current_opp_castle_ability[0] = position.opp_castle_ability[0]
-    current_opp_castle_ability[1] = position.opp_castle_ability[1]
+    current_castle_ability_bits = position.castle_ability_bits
+    current_hash_key = position.hash_key
 
     for move in moves:
 
         attempt = make_move(position, move)
 
         if not attempt:
-            undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+            undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
             continue
 
-        flip_position(position)
-
+        position.side ^= 1
         amt = fast_perft(position, depth - 1)
         total_amt += amt
 
-        flip_position(position)
-        undo_move(position, move, current_own_castle_ability, current_opp_castle_ability, current_ep)
+        position.side ^= 1
+        undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
 
-        print("Move " + get_uci_from_move(position, move) + ": " + str(amt))
+        print("Move " + get_uci_from_move(move) + ": " + str(amt))
 
-    with nb.objmode:    # (end_time=nb.float64)
+    with nb.objmode:
         end_time = timeit.default_timer()
 
         print("nodes searched: " + str(total_amt))

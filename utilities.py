@@ -22,19 +22,25 @@ REDUCTION_LIMIT     = 3
 NULL_MOVE_REDUCTION = 2
 
 # Piece Constants TODO: Refactor everything to use these constants
-OWN_PAWN        = 0
-OWN_KNIGHT      = 1
-OWN_BISHOP      = 2
-OWN_ROOK        = 3
-OWN_QUEEN       = 4
-OWN_KING        = 5
 
-OPP_PAWN        = 6
-OPP_KNIGHT      = 7
-OPP_BISHOP      = 8
-OPP_ROOK        = 9
-OPP_QUEEN       = 10
-OPP_KING        = 11
+MOVE_TYPE_NORMAL    = 0
+MOVE_TYPE_EP        = 1
+MOVE_TYPE_CASTLE    = 2
+MOVE_TYPE_PROMOTION = 3
+
+WHITE_PAWN        = 0
+WHITE_KNIGHT      = 1
+WHITE_BISHOP      = 2
+WHITE_ROOK        = 3
+WHITE_QUEEN       = 4
+WHITE_KING        = 5
+
+BLACK_PAWN        = 6
+BLACK_KNIGHT      = 7
+BLACK_BISHOP      = 8
+BLACK_ROOK        = 9
+BLACK_QUEEN       = 10
+BLACK_KING        = 11
 
 EMPTY           = 12
 PADDING         = 13
@@ -43,6 +49,13 @@ A1              = 91
 A8              = 21
 H1              = 98
 H8              = 28
+
+E1 = 95
+E8 = 25
+C1 = 93
+C8 = 23
+G1 = 97
+G8 = 27
 
 
 STANDARD_TO_MAILBOX = np.array((
@@ -73,25 +86,34 @@ MAILBOX_TO_STANDARD = np.array((
 ))
 
 
-OWN_INCREMENTS = np.array((
-    [-11,  -9, -10, -20,   0,   0,   0,   0],
-    [-21, -19,  -8,  12,  21,  19,   8, -12],
-    [-11,  11,   9,  -9,   0,   0,   0,   0],
-    [-10,   1,  10,  -1,   0,   0,   0,   0],
-    [-11,  11,   9,  -9, -10,   1,  10,  -1],
-    [-11, -10,  -9,   1,  11,  10,   9,  -1]
+WHITE_INCREMENTS = np.array((
+    (-11,  -9, -10, -20,   0,   0,   0,   0),
+    (-21, -19,  -8,  12,  21,  19,   8, -12),
+    (-11,  11,   9,  -9,   0,   0,   0,   0),
+    (-10,   1,  10,  -1,   0,   0,   0,   0),
+    (-11,  11,   9,  -9, -10,   1,  10,  -1),
+    (-11, -10,  -9,   1,  11,  10,   9,  -1)
 ))
 
-OWN_ATK_INCREMENTS = np.array((
-    [-11,  -9,   0,   0,   0,   0,   0,   0],
-    [-21, -19,  -8,  12,  21,  19,   8, -12],
-    [-11,  11,   9,  -9,   0,   0,   0,   0],
-    [-10,   1,  10,  -1,   0,   0,   0,   0],
-    [-11,  11,   9,  -9, -10,   1,  10,  -1],
-    [-11, -10,  -9,   1,  11,  10,   9,  -1]
+BLACK_INCREMENTS = np.array((
+    ( 11,   9,  10,  20,   0,   0,   0,   0),
+    (-21, -19,  -8,  12,  21,  19,   8, -12),
+    (-11,  11,   9,  -9,   0,   0,   0,   0),
+    (-10,   1,  10,  -1,   0,   0,   0,   0),
+    (-11,  11,   9,  -9, -10,   1,  10,  -1),
+    (-11, -10,  -9,   1,  11,  10,   9,  -1)
 ))
 
-OPP_ATK_INCREMENTS = np.array((
+WHITE_ATK_INCREMENTS = np.array((
+    (-11,  -9,   0,   0,   0,   0,   0,   0),
+    (-21, -19,  -8,  12,  21,  19,   8, -12),
+    (-11,  11,   9,  -9,   0,   0,   0,   0),
+    (-10,   1,  10,  -1,   0,   0,   0,   0),
+    (-11,  11,   9,  -9, -10,   1,  10,  -1),
+    (-11, -10,  -9,   1,  11,  10,   9,  -1)
+))
+
+BLACK_ATK_INCREMENTS = np.array((
     ( 11,   9,   0,   0,   0,   0,   0,   0),
     (-21, -19,  -8,  12,  21,  19,   8, -12),
     (-11,  11,   9,  -9,   0,   0,   0,   0),

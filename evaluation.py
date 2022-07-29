@@ -39,8 +39,11 @@ def evaluate(position):
 
             game_phase += GAME_PHASE_SCORES[piece-6]
 
-    white_score = (white_mid_scores * game_phase + (24 - game_phase) * white_end_scores) / 24
-    black_score = (black_mid_scores * game_phase + (24 - game_phase) * black_end_scores) / 24
+    white_score = ((white_mid_scores + white_mid_piece_vals) * game_phase +
+                   (24 - game_phase) * (white_end_scores + white_end_piece_vals)) / 24
+
+    black_score = ((black_mid_scores + black_end_piece_vals) * game_phase +
+                   (24 - game_phase) * (black_end_scores + black_end_piece_vals)) / 24
 
     return (position.side * -2 + 1) * (white_score - black_score)
 

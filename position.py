@@ -18,41 +18,17 @@ Functions in this file:
 """
 
 from move import *
-from numba.experimental import jitclass
+from position_class import Position
 
 
-PIECE_MATCHER = np.array([
+PIECE_MATCHER = np.array((
     'P',
     'N',
     'B',
     'R',
     'Q',
     'K',
-])
-
-
-# Numba's experimental Jitclasses require info on the attributes of the class
-position_spec = [
-    ("board", nb.int8[:]),  # Cannot be u-ints because subtraction of u-ints returns floats with numba
-    ("white_king_position", nb.int8),
-    ("black_king_position", nb.int8),
-    ("castle_ability_bits", nb.uint8),
-    ("ep_square", nb.int8),
-    ("side", nb.int8),
-    ("hash_key", nb.uint64)
-]
-
-
-@jitclass(position_spec)
-class Position:
-    def __init__(self):
-        self.board = np.zeros(120, dtype=np.int8)
-        self.white_king_position = 0
-        self.black_king_position = 0
-        self.castle_ability_bits = 0
-        self.ep_square = 0
-        self.side = 0
-        self.hash_key = 0
+))
 
 
 @nb.njit(nb.uint64(Position.class_type.instance_type), cache=True)
@@ -77,7 +53,7 @@ def compute_hash(position):
     return code
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.boolean(Position.class_type.instance_type, nb.int8), cache=True)
 def is_attacked(position, pos):
     board = position.board
     if position.side == 0:
@@ -168,7 +144,7 @@ def is_attacked(position, pos):
     return False
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
 def make_move(position, move):
 
     # Get move info
@@ -300,7 +276,7 @@ def make_move(position, move):
     return True
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE, nb.int8, nb.uint8, nb.uint64), cache=True)
 def undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key):
 
     # Restore hash
@@ -355,7 +331,7 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
         position.black_king_position = from_square
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
 def make_capture(position, move):
 
     from_square = get_from_square(move)
@@ -376,7 +352,7 @@ def make_capture(position, move):
     return True
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE), cache=True)
 def undo_capture(position, move):
 
     from_square = get_from_square(move)
@@ -393,7 +369,7 @@ def undo_capture(position, move):
         position.black_king_position = from_square
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.void(Position.class_type.instance_type), cache=True)
 def make_null_move(position):
 
     position.side ^= 1
@@ -404,15 +380,15 @@ def make_null_move(position):
         position.ep_square = 0
 
 
-@nb.njit(cache=True)
-def undo_null_move(position, current_hash_key, current_ep):
+@nb.njit(nb.void(Position.class_type.instance_type, nb.int8, nb.uint64), cache=True)
+def undo_null_move(position, current_ep, current_hash_key):
 
     position.side ^= 1
     position.ep_square = current_ep
     position.hash_key = current_hash_key
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.void(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
 def parse_fen(position, fen_string):
     fen_list = fen_string.strip().split()
     fen_board = fen_list[0]
@@ -480,7 +456,7 @@ def parse_fen(position, fen_string):
     position.hash_key = compute_hash(position)
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.types.unicode_type(Position.class_type.instance_type), cache=True)
 def make_readable_board(position):
     new_board = " "
     for j, i in enumerate(position.board[21:100]):
@@ -522,7 +498,6 @@ def make_readable_board(position):
 
     new_board += "\n"
     return new_board
-
 
 
 '''
@@ -596,5 +571,3 @@ Perft
 3: (197281, 1576, 0, 469, 461) 0.14667049999999993
 3: (4865609, 82719, 258, 27351, 15375) 2.412793375
 '''
-
-

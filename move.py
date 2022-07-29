@@ -1,5 +1,7 @@
 
+import numba as nb
 from utilities import *
+from position_class import Position
 
 """
            Binary move bits                Meaning          Hexadecimal
@@ -15,48 +17,48 @@ from utilities import *
 """
 
 
-@nb.njit(cache=True)
+@nb.njit(MOVE_TYPE(nb.uint8, nb.uint8, nb.uint8, nb.uint8, nb.uint8, nb.uint8, nb.uint8), cache=True)
 def encode_move(from_square, to_square, selected, occupied, move_type, promotion_piece, is_capture):
     return from_square | to_square << 7 | selected << 14 | occupied << 18 | move_type << 22 | \
         promotion_piece << 25 | is_capture << 29
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(nb.uint32), cache=True)
 def get_from_square(move):
     return move & 0x7f
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_to_square(move):
     return (move & 0x3f80) >> 7
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_selected(move):
     return (move & 0x3c000) >> 14
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_occupied(move):
     return (move & 0x3c0000) >> 18
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_move_type(move):
     return (move & 0x1c00000) >> 22
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_promotion_piece(move):
     return (move & 0x1e000000) >> 25
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_is_capture(move):
     return (move & 0x20000000) >> 29
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.types.unicode_type(MOVE_TYPE), cache=True)
 def get_uci_from_move(move):
 
     uci_move = ""
@@ -89,7 +91,7 @@ def get_uci_from_move(move):
     return uci_move
 
 
-@nb.njit(cache=True)
+@nb.njit(MOVE_TYPE(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
 def get_move_from_uci(position, uci):
     promotion_piece = 0
     if len(uci) == 5:
@@ -101,6 +103,8 @@ def get_move_from_uci(position, uci):
             promotion_piece = 2
         elif uci[4] == "n":
             promotion_piece = 1
+
+        promotion_piece += position.side * BLACK_PAWN
         uci = uci[:4]
 
     num_from_pos = [8 - ord(uci[1]) + 48, ord(uci[0]) - 97]
@@ -133,10 +137,4 @@ def get_move_from_uci(position, uci):
     move = encode_move(from_square, to_square, selected, occupied, move_type, promotion_piece, is_capture)
 
     return move
-
-
-
-
-
-
 

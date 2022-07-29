@@ -751,8 +751,29 @@ info depth 8 score cp 1 time 706 nodes 90660 nps 174636 pv e2e3 b8c6 g1f3 g8f6
 info depth 9 score cp 25 time 940 nodes 260707 nps 408433 pv g1f3 d7d5 d2d4 g8f6 b1d2 b8d7 e2e3
 info depth 10 score cp 14 time 1225 nodes 314416 nps 569739 pv g1f3 d7d5 d2d4 g8f6 b1c3 b8d7 c1f4 e7e6 f3e5 f6e4
 info depth 11 score cp 30 time 1698 nodes 549654 nps 734905 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 b1d2 a7a6 f3e5 d7e5 d4e5
-info depth 12 score cp 27 time 3685 nodes 2286679 nps 959119 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 f1d3 e7e6 e1g1 f8b4 c1d2 b4d6
+info depth 12 score cp 27 time 3685 nodes 2286679 nps 959119 pv g1f3 d7d5 d2d4 b8d7 e2e3 g8f6 f1d3 e7e6 e1g1 f8b4 c1d2
+ b4d6
 info depth 13 score cp 26 time 18457 nodes 16994152 nps 1112252 pv e2e4 b8c6 g1f3 e7e6 b1c3 g8f6 e4e5 f6d5
 info depth 13 score cp 26 time 60000 nodes 48475267 nps 1150060 pv e2e4 b8c6 g1f3 e7e6 b1c3 g8f6 e4e5 f6d5
 bestmove e2e4
+
+tapered eval
+info depth 1 score cp 50 time 254 nodes 21 nps 82 pv b1c3
+info depth 2 score cp 0 time 255 nodes 41 nps 242 pv b1c3 b8c6
+info depth 3 score cp 50 time 255 nodes 115 nps 692 pv b1c3 b8c6 g1f3
+info depth 4 score cp 0 time 257 nodes 138 nps 1224 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 41 time 258 nodes 1371 nps 6520 pv b1c3 b8c6 g1f3 g8f6 d2d4
+info depth 6 score cp 0 time 267 nodes 9715 nps 42630 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5
+info depth 7 score cp 30 time 276 nodes 11315 nps 82134 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 0 time 351 nodes 87981 nps 315083 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3 e7e6
+info depth 9 score cp 23 time 550 nodes 230197 nps 618749 pv g1f3 g8f6 e2e3 d7d5 f1b5 b8c6 e1g1 e7e5 b5c6 c8d7 b1c3
+info depth 10 score cp 23 time 786 nodes 279069 nps 788212 pv g1f3 g8f6 e2e3 d7d5 f1b5
+info depth 11 score cp 30 time 1362 nodes 687606 nps 959780 pv g1f3 g8f6 e2e3 b8c6 f1b5 e7e5 e1g1 f8c5 b1c3 e8g8 d2d4
+info depth 12 score cp 36 time 4105 nodes 3321085 nps 1127448 pv g1f3 b8c6 b1c3 e7e5 e2e4 d8h4 f1b5 h4f2 e1f2 g8f6
+ d2d4 d7d5 f2g1
+info depth 13 score cp 25 time 7151 nodes 3705078 nps 1165331 pv g1f3 b8c6 b1c3 e7e5 e2e4 g8f6 f1c4 d7d5 d2d4 f8c5
+ e1g1 e8g8 c1f4
+info depth 13 score cp 25 time 60004 nodes 59030719 nps 1122659 pv g1f3 b8c6 b1c3 e7e5 e2e4 g8f6 f1c4 d7d5 d2d4 f8c5
+ e1g1 e8g8 c1f4
+bestmove g1f3
 '''

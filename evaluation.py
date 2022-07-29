@@ -18,6 +18,7 @@ def evaluate(position):
     white_end_piece_vals = 0
     black_end_piece_vals = 0
 
+    game_phase = 0
     board = position.board
 
     for i in range(64):
@@ -28,21 +29,18 @@ def evaluate(position):
             white_mid_scores += PST[piece][i]
             white_end_scores += ENDGAME_PST[piece][i]
 
+            game_phase += GAME_PHASE_SCORES[piece]
+
         elif piece < EMPTY:
             black_mid_piece_vals += PIECE_VALUES[piece - 6]
             black_end_piece_vals += ENDGAME_PIECE_VALUES[piece - 6]
             black_mid_scores += PST[piece - 6][i ^ 56]
             black_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
 
-    if white_end_piece_vals < 1300:
-        white_score = white_end_scores + white_end_piece_vals
-    else:
-        white_score = white_mid_scores + white_mid_piece_vals
+            game_phase += GAME_PHASE_SCORES[piece-6]
 
-    if black_end_piece_vals < 1300:
-        black_score = black_end_scores + black_end_piece_vals
-    else:
-        black_score = black_mid_scores + black_mid_piece_vals
+    white_score = (white_mid_scores * game_phase + (24 - game_phase) * white_end_scores) / 24
+    black_score = (black_mid_scores * game_phase + (24 - game_phase) * black_end_scores) / 24
 
     return (position.side * -2 + 1) * (white_score - black_score)
 

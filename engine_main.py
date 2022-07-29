@@ -3,10 +3,12 @@
 This file is solely for testing purposes.
 The main file which handles uci is main.py
 """
-import position
+
 from cache_clearer import kill_numba_cache
 from perft import *
-from search import Search, iterative_search
+from search import iterative_search
+from search_class import Search
+from position_class import Position
 
 
 def main():
@@ -62,4 +64,4 @@ def clear_cache():
 
 if __name__ == "__main__":
     main()
-    # clear_cache()
+    #clear_cache()

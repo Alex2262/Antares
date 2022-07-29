@@ -1,9 +1,10 @@
 
 from move import *
 from utilities import *         # contains Evaluation arrays
+from search_class import Search
 
 
-@nb.njit(cache=True)
+@nb.njit(SCORE_TYPE(Position.class_type.instance_type), cache=True)
 def evaluate(position):
     white_mid_scores = 0
     black_mid_scores = 0
@@ -46,7 +47,7 @@ def evaluate(position):
     return (position.side * -2 + 1) * (white_score - black_score)
 
 
-@nb.njit(cache=True)
+@nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
 def score_move(engine, move, tt_move):
 
     if move == tt_move:
@@ -121,7 +122,7 @@ def score_move(engine, move, tt_move):
     return score
 
 
-@nb.njit(cache=True)
+@nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
 def score_capture(move):
 
     score = 0

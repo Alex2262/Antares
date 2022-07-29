@@ -2,9 +2,11 @@
 
 from evaluation import score_move, score_capture
 from move import *
+from position_class import Position
+from search_class import Search
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
 def get_pseudo_legal_moves(position):
     moves = []
     board = position.board
@@ -138,7 +140,7 @@ def get_pseudo_legal_moves(position):
     return moves
 
 
-@nb.njit(cache=True)
+@nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
 def get_pseudo_legal_captures(position):
 
     moves = []
@@ -201,30 +203,34 @@ def get_pseudo_legal_captures(position):
     return moves
 
 
-@nb.njit(cache=True)
-def get_scored_moves(engine, moves, tt_move):
+@nb.njit(nb.types.List(SCORE_TYPE)(Search.class_type.instance_type, nb.types.List(MOVE_TYPE), MOVE_TYPE))
+def get_move_scores(engine, moves, tt_move):
     scored_moves = []
 
     for move in moves:
-        scored_moves.append((move, nb.int32(score_move(engine, move, tt_move))))
+        scored_moves.append(score_move(engine, move, tt_move))
 
     return scored_moves
 
 
-@nb.njit(cache=True)
-def get_scored_captures(moves):
+@nb.njit(nb.types.List(SCORE_TYPE)(nb.types.List(MOVE_TYPE)), cache=True)
+def get_capture_scores(moves):
     scored_moves = []
 
     for move in moves:
-        scored_moves.append((move, score_capture(move)))
+        scored_moves.append(score_capture(move))
 
     return scored_moves
 
 
-@nb.njit(cache=True)
-def sort_next_move(moves, current_count):
+@nb.njit(nb.void(nb.types.List(MOVE_TYPE), nb.types.List(SCORE_TYPE), nb.uint8), cache=True)
+def sort_next_move(moves, move_scores, current_count):
     for next_count in range(current_count, len(moves)):
-        if moves[current_count][1] < moves[next_count][1]:
-            current_scored_move = moves[current_count]
+        if move_scores[current_count] < move_scores[next_count]:
+            current_move = moves[current_count]
             moves[current_count] = moves[next_count]
-            moves[next_count] = current_scored_move
+            moves[next_count] = current_move
+
+            current_score = move_scores[current_count]
+            move_scores[current_count] = move_scores[next_count]
+            move_scores[next_count] = current_score

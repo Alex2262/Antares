@@ -8,8 +8,10 @@ import threading
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci
-from position import Position, make_move, parse_fen
-from search import Search, iterative_search, compile_engine
+from position import make_move, parse_fen
+from position_class import Position
+from search import iterative_search, compile_engine
+from search_class import Search
 
 
 def parse_go(msg, engine, turn):
@@ -65,7 +67,7 @@ def main():
             break
 
         elif msg == "uci" or msg.startswith("uciok"):
-            print("id name AntaresPy2.1")
+            print("id name AntaresPy2.2")
             print("id author Alexander_Tian")
             print("uciok")
             continue

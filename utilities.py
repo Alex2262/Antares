@@ -57,6 +57,14 @@ C8 = 23
 G1 = 97
 G8 = 27
 
+SCORE_TYPE = nb.int32
+MOVE_TYPE = nb.uint32
+
+# This allows for a structured array similar to a C struct
+# This is 18 bytes
+NUMBA_HASH_TYPE = nb.from_dtype(np.dtype(
+    [("key", np.uint64), ("score", np.int32), ("flag", np.uint8), ("move", np.uint32), ("depth", np.int8)]
+))
 
 STANDARD_TO_MAILBOX = np.array((
     21, 22, 23, 24, 25, 26, 27, 28,
@@ -237,12 +245,6 @@ PIECE_HASH_KEYS = np.random.randint(1, 2**64 - 1, size=(12, 64), dtype=np.uint64
 EP_HASH_KEYS = np.random.randint(1, 2**64 - 1, size=64, dtype=np.uint64)
 CASTLE_HASH_KEYS = np.random.randint(1, 2 ** 64 - 1, size=16, dtype=np.uint64)
 SIDE_HASH_KEY = np.random.randint(1, 2 ** 64 - 1, dtype=np.uint64)
-
-# This allows for a structured array similar to a C struct
-# This is 18 bytes
-NUMBA_HASH_TYPE = nb.from_dtype(np.dtype(
-    [("key", np.uint64), ("score", np.int32), ("flag", np.uint8), ("move", np.uint32), ("depth", np.int8)]
-))
 
 HASH_FLAG_EXACT, HASH_FLAG_ALPHA, HASH_FLAG_BETA = (0, 1, 2)
 

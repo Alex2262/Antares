@@ -48,7 +48,7 @@ def reset(engine):
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
 @nb.njit
 def new_game(engine):
-    engine.reset()
+    reset(engine)
     engine.repetition_table = np.zeros(REPETITION_TABLE_SIZE, dtype=np.uint64)
     engine.repetition_index = 0
 

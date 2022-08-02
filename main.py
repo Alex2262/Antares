@@ -103,6 +103,7 @@ def main():
             if len(tokens) <= next_idx or tokens[next_idx] != "moves":
                 continue
 
+            main_engine.repetition_index = 0
             for move in tokens[(next_idx + 1):]:
                 formatted_move = get_move_from_uci(main_position, move)
                 make_move(main_position, formatted_move)

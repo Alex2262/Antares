@@ -10,7 +10,7 @@ from cache_clearer import kill_numba_cache
 from move import get_move_from_uci
 from position import make_move, parse_fen
 from position_class import Position
-from search import iterative_search, compile_engine
+from search import iterative_search, compile_engine, new_game
 from search_class import Search
 
 
@@ -79,6 +79,7 @@ def main():
 
         elif msg == "ucinewgame":
             parse_fen(main_position, start_fen)
+            new_game(main_engine)
             turn = "w"
 
         elif msg.startswith("position"):
@@ -105,6 +106,9 @@ def main():
             for move in tokens[(next_idx + 1):]:
                 formatted_move = get_move_from_uci(main_position, move)
                 make_move(main_position, formatted_move)
+
+                main_engine.repetition_index += 1
+                main_engine.repetition_table[main_engine.repetition_index] = main_position.hash_key
 
                 main_position.side ^= 1
                 turn = "w" if turn == "b" else "b"

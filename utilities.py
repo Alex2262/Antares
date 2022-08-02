@@ -138,15 +138,14 @@ ENDGAME_PIECE_VALUES = np.array((96, 292, 304, 512, 936, 0))
 PST = np.array((
         # Pawns in the center are good.
         # Pawns near the king (generally the king side) are good.
-        # Pawns on the h file in the middle game aren't great.
         # Pawns on the 7th rank are very good comparative to their column.
         (    0,   0,   0,   0,   0,   0,   0,   0,
-            80,  90,  95,  95,  95,  90,  60,  45,
-            10,  15,  20,  30,  40,  20,  15,   0,
-             3,   4,  15,  20,  25,  15,   4,  -7,
-             0,   0,  10,  15,  17,   5,   0,  -9,
-             2,   2,   0,   2,   4,  -5,  12,  -5,
-             0,   0,   3, -26, -26,  12,  15, -10,
+            80,  90,  95,  95,  95,  90,  80,  70,
+            10,  15,  20,  30,  40,  20,  15,   5,
+             3,   4,  15,  20,  25,  15,   4,  -2,
+             0,   0,  10,  15,  17,   5,   0,  -4,
+             2,   2,   0,   2,   4,  -5,  12,   0,
+             0,   0,   3, -26, -26,  12,  15,  -5,
              0,   0,   0,   0,   0,   0,   0,   0),
 
         (  -70, -60, -30, -35,  -5, -30, -20, -70,

@@ -67,7 +67,7 @@ def main():
             break
 
         elif msg == "uci" or msg.startswith("uciok"):
-            print("id name AntaresPy2.2")
+            print("id name AntaresPy2.22")
             print("id author Alexander_Tian")
             print("uciok")
             continue

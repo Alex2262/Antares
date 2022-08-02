@@ -1,5 +1,5 @@
 
-import timeit
+import time
 
 from move_generator import *
 from position import *
@@ -102,7 +102,7 @@ def fast_perft(position, depth):
 def uci_perft(position, depth):
 
     with nb.objmode(start_time=nb.double):
-        start_time = timeit.default_timer()
+        start_time = time.time()
 
     # In case someone decides to run perft 0?
     if depth == 0:
@@ -134,7 +134,7 @@ def uci_perft(position, depth):
         print("Move " + get_uci_from_move(move) + ": " + str(amt))
 
     with nb.objmode:
-        end_time = timeit.default_timer()
+        end_time = time.time()
 
         print("nodes searched: " + str(total_amt))
         print("perft speed: " + str(int(total_amt / (end_time - start_time)) / 1000) + "kn/s")

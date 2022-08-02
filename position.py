@@ -53,7 +53,8 @@ def compute_hash(position):
     return code
 
 
-@nb.njit(nb.boolean(Position.class_type.instance_type, nb.int8), cache=True)
+# @nb.njit(nb.boolean(Position.class_type.instance_type, nb.int8), cache=True)
+@nb.njit
 def is_attacked(position, pos):
     board = position.board
     if position.side == 0:
@@ -144,7 +145,8 @@ def is_attacked(position, pos):
     return False
 
 
-@nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+# @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+@nb.njit
 def make_move(position, move):
 
     # Get move info
@@ -276,7 +278,8 @@ def make_move(position, move):
     return True
 
 
-@nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE, nb.int8, nb.uint8, nb.uint64), cache=True)
+# @nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE, nb.int8, nb.uint8, nb.uint64), cache=True)
+@nb.njit
 def undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key):
 
     # Restore hash
@@ -331,7 +334,8 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
         position.black_king_position = from_square
 
 
-@nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+# @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+@nb.njit
 def make_capture(position, move):
 
     from_square = get_from_square(move)
@@ -352,7 +356,8 @@ def make_capture(position, move):
     return True
 
 
-@nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+# @nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE), cache=True)
+@nb.njit
 def undo_capture(position, move):
 
     from_square = get_from_square(move)
@@ -369,7 +374,8 @@ def undo_capture(position, move):
         position.black_king_position = from_square
 
 
-@nb.njit(nb.void(Position.class_type.instance_type), cache=True)
+# @nb.njit(nb.void(Position.class_type.instance_type), cache=True)
+@nb.njit
 def make_null_move(position):
 
     position.side ^= 1
@@ -380,7 +386,8 @@ def make_null_move(position):
         position.ep_square = 0
 
 
-@nb.njit(nb.void(Position.class_type.instance_type, nb.int8, nb.uint64), cache=True)
+# @nb.njit(nb.void(Position.class_type.instance_type, nb.int8, nb.uint64), cache=True)
+@nb.njit
 def undo_null_move(position, current_ep, current_hash_key):
 
     position.side ^= 1
@@ -388,7 +395,8 @@ def undo_null_move(position, current_ep, current_hash_key):
     position.hash_key = current_hash_key
 
 
-@nb.njit(nb.void(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
+# @nb.njit(nb.void(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
+@nb.njit
 def parse_fen(position, fen_string):
     fen_list = fen_string.strip().split()
     fen_board = fen_list[0]

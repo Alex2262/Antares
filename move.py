@@ -23,42 +23,50 @@ def encode_move(from_square, to_square, selected, occupied, move_type, promotion
         promotion_piece << 25 | is_capture << 29
 
 
-@nb.njit(nb.int8(nb.uint32), cache=True)
+# @nb.njit(nb.int8(nb.uint32), cache=True)
+@nb.njit
 def get_from_square(move):
     return move & 0x7f
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_to_square(move):
     return (move & 0x3f80) >> 7
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_selected(move):
     return (move & 0x3c000) >> 14
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_occupied(move):
     return (move & 0x3c0000) >> 18
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_move_type(move):
     return (move & 0x1c00000) >> 22
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_promotion_piece(move):
     return (move & 0x1e000000) >> 25
 
 
-@nb.njit(nb.int8(MOVE_TYPE), cache=True)
+# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
+@nb.njit
 def get_is_capture(move):
     return (move & 0x20000000) >> 29
 
 
-@nb.njit(nb.types.unicode_type(MOVE_TYPE), cache=True)
+# @nb.njit(nb.types.unicode_type(MOVE_TYPE), cache=True)
+@nb.njit
 def get_uci_from_move(move):
 
     uci_move = ""
@@ -91,7 +99,8 @@ def get_uci_from_move(move):
     return uci_move
 
 
-@nb.njit(MOVE_TYPE(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
+# @nb.njit(MOVE_TYPE(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
+@nb.njit
 def get_move_from_uci(position, uci):
     promotion_piece = 0
     if len(uci) == 5:

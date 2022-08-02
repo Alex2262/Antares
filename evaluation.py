@@ -4,7 +4,8 @@ from utilities import *         # contains Evaluation arrays
 from search_class import Search
 
 
-@nb.njit(SCORE_TYPE(Position.class_type.instance_type), cache=True)
+# @nb.njit(SCORE_TYPE(Position.class_type.instance_type), cache=True)
+@nb.njit
 def evaluate(position):
     white_mid_scores = 0
     black_mid_scores = 0
@@ -45,10 +46,11 @@ def evaluate(position):
     black_score = ((black_mid_scores + black_end_piece_vals) * game_phase +
                    (24 - game_phase) * (black_end_scores + black_end_piece_vals)) / 24
 
-    return (position.side * -2 + 1) * (white_score - black_score)
+    return (position.side * -2 + 1) * SCORE_TYPE(white_score - black_score)
 
 
-@nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
+# @nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
+@nb.njit
 def score_move(engine, move, tt_move):
 
     if move == tt_move:
@@ -65,7 +67,7 @@ def score_move(engine, move, tt_move):
     if selected < BLACK_PAWN:
         if get_is_capture(move):
             score += 10000
-            score += PIECE_VALUES[occupied - BLACK_PAWN] - PIECE_VALUES[selected]
+            score += 2 * (PIECE_VALUES[occupied - BLACK_PAWN] - PIECE_VALUES[selected])
             score += PST[occupied - BLACK_PAWN][standard_to_square ^ 56]
         else:
             # score 1st killer move
@@ -94,7 +96,7 @@ def score_move(engine, move, tt_move):
     else:
         if get_is_capture(move):
             score += 10000
-            score += PIECE_VALUES[occupied] - PIECE_VALUES[selected - BLACK_PAWN]
+            score += 2 * (PIECE_VALUES[occupied] - PIECE_VALUES[selected - BLACK_PAWN])
             score += PST[occupied][standard_to_square]
         else:
             # score 1st killer move
@@ -123,7 +125,8 @@ def score_move(engine, move, tt_move):
     return score
 
 
-@nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
+# @nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
+@nb.njit
 def score_capture(move):
 
     score = 0

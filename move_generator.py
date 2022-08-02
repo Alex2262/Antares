@@ -6,7 +6,8 @@ from position_class import Position
 from search_class import Search
 
 
-@nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
+# @nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
+@nb.njit
 def get_pseudo_legal_moves(position):
     moves = []
     board = position.board
@@ -140,7 +141,8 @@ def get_pseudo_legal_moves(position):
     return moves
 
 
-@nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
+# @nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
+@nb.njit
 def get_pseudo_legal_captures(position):
 
     moves = []
@@ -203,7 +205,8 @@ def get_pseudo_legal_captures(position):
     return moves
 
 
-@nb.njit(nb.types.List(SCORE_TYPE)(Search.class_type.instance_type, nb.types.List(MOVE_TYPE), MOVE_TYPE))
+# @nb.njit(nb.types.List(SCORE_TYPE)(Search.class_type.instance_type, nb.types.List(MOVE_TYPE), MOVE_TYPE))
+@nb.njit
 def get_move_scores(engine, moves, tt_move):
     scored_moves = []
 
@@ -213,7 +216,8 @@ def get_move_scores(engine, moves, tt_move):
     return scored_moves
 
 
-@nb.njit(nb.types.List(SCORE_TYPE)(nb.types.List(MOVE_TYPE)), cache=True)
+# @nb.njit(nb.types.List(SCORE_TYPE)(nb.types.List(MOVE_TYPE)), cache=True)
+@nb.njit
 def get_capture_scores(moves):
     scored_moves = []
 
@@ -223,7 +227,8 @@ def get_capture_scores(moves):
     return scored_moves
 
 
-@nb.njit(nb.void(nb.types.List(MOVE_TYPE), nb.types.List(SCORE_TYPE), nb.uint8), cache=True)
+# @nb.njit(nb.void(nb.types.List(MOVE_TYPE), nb.types.List(SCORE_TYPE), nb.uint8), cache=True)
+@nb.njit
 def sort_next_move(moves, move_scores, current_count):
     for next_count in range(current_count, len(moves)):
         if move_scores[current_count] < move_scores[next_count]:

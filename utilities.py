@@ -8,6 +8,7 @@ np.random.seed(1)
 MAX_HASH_SIZE       = 0x3640E2  # 64 mb
 NO_HASH_ENTRY       = 2000000
 USE_HASH_MOVE       = 3000000
+REPETITION_TABLE_SIZE = 500
 
 NO_MOVE             = 0
 
@@ -19,10 +20,8 @@ ASPIRATION_VAL      = 50
 # Search Constants
 FULL_DEPTH_MOVES    = 3
 REDUCTION_LIMIT     = 3
-NULL_MOVE_REDUCTION = 2
 
-# Piece Constants TODO: Refactor everything to use these constants
-
+# Piece/Move/Position Constants
 MOVE_TYPE_NORMAL    = 0
 MOVE_TYPE_EP        = 1
 MOVE_TYPE_CASTLE    = 2
@@ -137,13 +136,17 @@ ENDGAME_PIECE_VALUES = np.array((96, 292, 304, 512, 936, 0))
 
 
 PST = np.array((
+        # Pawns in the center are good.
+        # Pawns near the king (generally the king side) are good.
+        # Pawns on the h file in the middle game aren't great.
+        # Pawns on the 7th rank are very good comparative to their column.
         (    0,   0,   0,   0,   0,   0,   0,   0,
-            80,  90,  95,  95,  95,  90,  80,  70,
-            10,  15,  20,  24,  24,  20,  15,  10,
-             3,   4,  15,  20,  20,  15,   4,   3,
-             0,   0,  10,  15,  15,   5,   0,   0,
-             2,   2,   0,   4,   4,  -5,   2,   2,
-             0,   0,   3, -26, -26,  12,   5,   0,
+            80,  90,  95,  95,  95,  90,  60,  45,
+            10,  15,  20,  30,  40,  20,  15,   0,
+             3,   4,  15,  20,  25,  15,   4,  -7,
+             0,   0,  10,  15,  17,   5,   0,  -9,
+             2,   2,   0,   2,   4,  -5,  12,  -5,
+             0,   0,   3, -26, -26,  12,  15, -10,
              0,   0,   0,   0,   0,   0,   0,   0),
 
         (  -70, -60, -30, -35,  -5, -30, -20, -70,
@@ -193,13 +196,17 @@ PST = np.array((
 ))
 
 ENDGAME_PST = np.array((
+        # Pawns on the 6th and 7th rank are excellent.
+        # Let pawns stay on the second rank unless they can be pushed forwards.
+        # Pawns on the flank files are better when they are pushed more
+        # since they can become outside passed pawns
         (    0,   0,   0,   0,   0,   0,   0,   0,
-           105, 110, 110, 110, 105, 105, 105, 105,
-            80,  90,  80,  80,  70,  70,  80,  80,
-             3,   4,   9,  16,  16,   9,   4,   3,
-             0,   0,   5,  15,  15,   5,   0,   0,
-             2,   2,   0,  -1,  -1,   0,   2,   2,
-            -5,  10,   3, -26, -26,   3,  10,  -5,
+           145, 135, 130, 125, 125, 125, 135, 145,
+            95,  90,  80,  70,  60,  60,  80,  85,
+            20,  20,  10,  16,  16,  10,  15,  15,
+            10,   0,   5,   4,   4,   5,   0,   0,
+             2,   2,   0,   3,   3,   0,   2,   2,
+            10,  10,   5,   5,   5,   3,   1,   0,
              0,   0,   0,   0,   0,   0,   0,   0),
         (  -60, -40, -30, -30, -30, -30, -40, -80,
            -40, -20,   0,   0,   0,   0, -20, -40,

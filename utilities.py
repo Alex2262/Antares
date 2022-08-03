@@ -94,8 +94,8 @@ MAILBOX_TO_STANDARD = np.array((
 
 
 WHITE_INCREMENTS = np.array((
-    (-11,  -9, -10, -20,   0,   0,   0,   0),
-    (-21, -19,  -8,  12,  21,  19,   8, -12),
+    (-11,  -9, -10, -20,   0,   0,   0,   0),  # Pawn
+    (-21, -19,  -8,  12,  21,  19,   8, -12),  # Knight
     (-11,  11,   9,  -9,   0,   0,   0,   0),
     (-10,   1,  10,  -1,   0,   0,   0,   0),
     (-11,  11,   9,  -9, -10,   1,  10,  -1),
@@ -134,6 +134,19 @@ GAME_PHASE_SCORES = np.array((0, 1, 1, 2, 4, 0))
 PIECE_VALUES = np.array((82, 326, 352, 486, 982, 0))
 ENDGAME_PIECE_VALUES = np.array((96, 292, 304, 512, 936, 0))
 
+TEMPO_BONUS = 8
+
+DOUBLED_PAWN_PENALTY = 14
+ENDGAME_DOUBLED_PAWN_PENALTY = 20  # Doubled pawns are very easy to target in the endgame.
+
+ISOLATED_PAWN_PENALTY = 18
+ENDGAME_ISOLATED_PAWN_PENALTY = 12  # The person playing with the isolated pawns should trade off pieces.
+
+BACKWARDS_PAWN_PENALTY = 6
+ENDGAME_BACKWARDS_PAWN_PENALTY = 8  # Give this a higher base score, but we reduce multipliers in eval_pawn()
+
+PASSED_PAWN_BONUS = 15
+ENDGAME_PASSED_PAWN_BONUS = 25
 
 PST = np.array((
         # Pawns in the center are good.

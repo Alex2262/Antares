@@ -9,6 +9,7 @@ from perft import *
 from search import iterative_search
 from search_class import Search
 from position_class import Position
+from evaluation import evaluate
 
 
 def main():

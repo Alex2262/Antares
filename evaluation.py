@@ -12,17 +12,21 @@ def evaluate_pawn(position, pawn_rank, pos):
 
     mid_score = 0
     end_score = 0
-    side = 0 if position.board[pos] == WHITE_PAWN else 1
 
-    if side == 0:
+    pawn_color = 0 if position.board[pos] == WHITE_PAWN else 1
+    if pawn_color == 0:
 
-        if pawn_rank[0][f] > row:
+        # Doubled pawns. The pawn we are checking is higher in row compared to
+        # the least advanced pawn in our column.
+        if row > pawn_rank[0][f]:
             mid_score -= DOUBLED_PAWN_PENALTY
             end_score -= ENDGAME_DOUBLED_PAWN_PENALTY
 
-        if pawn_rank[0][f - 1] == 0 and pawn_rank[0][f + 1] == 0:
-            
-            if pawn_rank[1][f] == 9:
+        # Isolated pawns. We do not have pawns on the columns next to our pawn.
+        if pawn_rank[0][f - 1] == 9 and pawn_rank[0][f + 1] == 9:
+
+            # If our opponent does not have a pawn in front of our pawn
+            if pawn_rank[1][f] == 0:
                 # The isolated pawn in the middle game is worse if the opponent
                 # has the semi open file to attack it.
                 mid_score -= 1.5 * ISOLATED_PAWN_PENALTY
@@ -33,7 +37,7 @@ def evaluate_pawn(position, pawn_rank, pos):
                 mid_score -= ISOLATED_PAWN_PENALTY
                 end_score -= ENDGAME_ISOLATED_PAWN_PENALTY
 
-        elif pawn_rank[0][f - 1] > row and pawn_rank[0][f + 1] > row:
+        elif row < pawn_rank[0][f - 1] and row < pawn_rank[0][f + 1]:
             # In the middle game it's worse to have a very backwards pawn
             # since then, the 'forwards' pawns won't be protected
             mid_score -= BACKWARDS_PAWN_PENALTY + \
@@ -45,26 +49,25 @@ def evaluate_pawn(position, pawn_rank, pos):
 
             # If there's no enemy pawn in front of our pawn then it's even worse, since
             # we allow outposts and pieces to attack us easily
-            if pawn_rank[1][f] == 9:
-                # In the middle game it is worse since enemy pieces can use the semi-open file and outpost.
+            if pawn_rank[1][f] == 0:
+                # In the endgame with no pieces it wouldn't be a big deal, in some situations it could be better.
                 mid_score -= 3 * BACKWARDS_PAWN_PENALTY
-                end_score -= BACKWARDS_PAWN_PENALTY
 
-        if pawn_rank[1][f - 1] <= row and\
-             pawn_rank[1][f] <= row and\
-             pawn_rank[1][f + 1] <= row:
+        if row >= pawn_rank[1][f - 1] and\
+                row >= pawn_rank[1][f] and\
+                row >= pawn_rank[1][f + 1]:
             mid_score += row * PASSED_PAWN_BONUS
             end_score += row * ENDGAME_PASSED_PAWN_BONUS
 
     else:
 
-        if pawn_rank[1][f] < row:
+        if row < pawn_rank[1][f]:
             mid_score -= DOUBLED_PAWN_PENALTY
             end_score -= ENDGAME_DOUBLED_PAWN_PENALTY
 
-        if pawn_rank[1][f - 1] == 9 and pawn_rank[1][f + 1] == 9:
+        if pawn_rank[1][f - 1] == 0 and pawn_rank[1][f + 1] == 0:
 
-            if pawn_rank[0][f] == 0:
+            if pawn_rank[0][f] == 9:
                 # The isolated pawn in the middle game is worse if the opponent
                 # has the semi open file to attack it.
                 mid_score -= 1.5 * ISOLATED_PAWN_PENALTY
@@ -75,7 +78,7 @@ def evaluate_pawn(position, pawn_rank, pos):
                 mid_score -= ISOLATED_PAWN_PENALTY
                 end_score -= ENDGAME_ISOLATED_PAWN_PENALTY
 
-        elif pawn_rank[1][f - 1] < row and pawn_rank[1][f + 1] < row:
+        elif row < pawn_rank[1][f - 1] and row < pawn_rank[1][f + 1]:
             # In the middle game it's worse to have a very backwards pawn
             # since then, the 'forwards' pawns won't be protected
             mid_score -= BACKWARDS_PAWN_PENALTY + \
@@ -90,13 +93,12 @@ def evaluate_pawn(position, pawn_rank, pos):
             if pawn_rank[0][f] == 0:
                 # In the middle game it is worse since enemy pieces can use the semi-open file and outpost.
                 mid_score -= 3 * BACKWARDS_PAWN_PENALTY
-                end_score -= BACKWARDS_PAWN_PENALTY
 
-        if pawn_rank[0][f - 1] >= row and \
-                pawn_rank[0][f] >= row and \
-                pawn_rank[0][f + 1] >= row:
-            mid_score += (8 - row) * PASSED_PAWN_BONUS
-            end_score += (8 - row) * ENDGAME_PASSED_PAWN_BONUS
+        if row <= pawn_rank[0][f - 1] and \
+                row <= pawn_rank[0][f] and \
+                row <= pawn_rank[0][f + 1]:
+            mid_score += (9 - row) * PASSED_PAWN_BONUS
+            end_score += (9 - row) * ENDGAME_PASSED_PAWN_BONUS
 
     return mid_score, end_score
 
@@ -110,6 +112,10 @@ def evaluate(position):
     white_end_scores = 0
     black_end_scores = 0
 
+    # We make a 10 size array for each side, and eight of them are used for storing
+    # the least advanced pawn. Storing this allows us to check for passed pawns,
+    # backwards pawns, isolated pawns and whatnot.
+    # Having a ten element array gives padding on the side to prevent out of bounds exceptions.
     pawn_rank = np.zeros((2, 10), dtype=np.uint8)
 
     game_phase = 0
@@ -117,8 +123,8 @@ def evaluate(position):
 
     for i in range(10):
         # This can tell us if there's no pawn in this file
-        pawn_rank[0][i] = 0
-        pawn_rank[1][i] = 9
+        pawn_rank[0][i] = 9
+        pawn_rank[1][i] = 0
 
     for i in range(64):
         pos = STANDARD_TO_MAILBOX[i]
@@ -126,11 +132,11 @@ def evaluate(position):
         row = 8 - i // 8
         f = i % 8 + 1
         if piece == WHITE_PAWN:
-            if pawn_rank[0][f] < row:
+            if row < pawn_rank[0][f]:
                 pawn_rank[0][f] = row
 
         elif piece == BLACK_PAWN:
-            if pawn_rank[1][f] > row:
+            if row > pawn_rank[1][f]:
                 pawn_rank[1][f] = row
 
     for i in range(64):
@@ -168,7 +174,7 @@ def evaluate(position):
     black_score = (black_mid_scores * game_phase +
                    (24 - game_phase) * black_end_scores) / 24
 
-    return (position.side * -2 + 1) * SCORE_TYPE(white_score - black_score + TEMPO_BONUS)
+    return SCORE_TYPE((position.side * -2 + 1) * (white_score - black_score) + TEMPO_BONUS)
 
 
 @nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)

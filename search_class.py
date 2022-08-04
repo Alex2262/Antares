@@ -5,7 +5,7 @@ from utilities import *
 search_spec = [
     ("max_depth", nb.uint16),
     ("max_qdepth", nb.uint16),
-    ("max_time", nb.double),        # seconds
+    ("max_time", nb.uint64),        # seconds
     ("min_depth", nb.uint16),
     ("current_search_depth", nb.uint16),
     ("ply", nb.uint16),             # opposite of depth counter
@@ -28,13 +28,13 @@ class Search:
 
     def __init__(self):
 
-        self.max_depth = 30
-        self.max_qdepth = 4
+        self.max_depth = 64
+        self.max_qdepth = 1000
         self.min_depth = 2
         self.current_search_depth = 0
         self.ply = 0
 
-        self.max_time = 10
+        self.max_time = 10000
         self.start_time = 0
 
         self.node_count = 0

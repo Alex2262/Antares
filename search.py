@@ -56,7 +56,7 @@ def new_game(engine):
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
 @nb.njit
 def update_search(engine):
-    elapsed_time = get_time() - engine.start_time
+    elapsed_time = 1000 * (get_time() - engine.start_time)
     if elapsed_time >= engine.max_time and engine.current_search_depth >= engine.min_depth:
         engine.stopped = True
 
@@ -77,7 +77,7 @@ def detect_repetition(engine, position):
 def qsearch(engine, position, alpha, beta, depth):
 
     # Update the search progress every 1024 nodes
-    if engine.node_count % 1024 == 0:
+    if engine.node_count & 1023 == 0:
         update_search(engine)
 
     # Increase the node count
@@ -975,10 +975,32 @@ info depth 7 score cp 16 time 45 nodes 9613 nps 426186 pv b1c3 b8c6 g1f3 g8f6 e2
 info depth 8 score cp 4 time 121 nodes 68331 nps 719061 pv b1c3 g8f6 g1f3 d7d5 d2d4
 info depth 9 score cp 22 time 356 nodes 208608 nps 831693 pv e2e4 b8c6 b1c3 g8f6 g1f3
 info depth 10 score cp 20 time 598 nodes 219335 nps 862160 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 e7e5 b1c3 f8b4
-info depth 11 score cp 21 time 1160 nodes 499493 nps 874872 pv e2e4 b8c6 d2d4 e7e6 g1f3 d7d5 b1d2 d5e4 d2e4 f8b4 c2c3 g8f6
+info depth 11 score cp 21 time 1160 nodes 499493 nps 874872 pv e2e4 b8c6 d2d4 e7e6 g1f3 d7d5 b1d2 d5e4 d2e4 f8b4 c2c3
+ g8f6
 info depth 12 score cp 25 time 3618 nodes 2230681 nps 896888 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 g1f3
-info depth 13 score cp 24 time 8145 nodes 3821380 nps 867639 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 g1f3 g8e7 b1c3 c8d7 c1f4 e7g6 f4g5
+info depth 13 score cp 24 time 8145 nodes 3821380 nps 867639 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 g1f3 g8e7 b1c3 c8d7 c1f4
+ e7g6 f4g5
 info depth 14 score cp 8 time 51731 nodes 39338946 nps 897064 pv e2e4 e7e5 g1f3 g8f6 b1c3 b8c6 f1b5
 info depth 14 score cp 8 time 60000 nodes 7283936 nps 894820 pv e2e4 e7e5 g1f3 g8f6 b1c3 b8c6 f1b5
+bestmove e2e4
+
+QSearch depth made unlimited and switched update_search to use bitwise and instead of modulo
+info depth 1 score cp 42 time 28 nodes 21 nps 731 pv b1c3
+info depth 2 score cp 8 time 29 nodes 60 nps 2779 pv b1c3 b8c6
+info depth 3 score cp 42 time 29 nodes 138 nps 7466 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 31 nodes 997 nps 39190 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 32 nodes 1322 nps 77434 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 42 nodes 7227 nps 230268 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 53 nodes 9952 nps 370391 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 87 nodes 30351 nps 572821 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 13 time 254 nodes 142516 nps 757727 pv g1f3 g8f6 d2d4 d7d5 b1c3 b8c6
+info depth 10 score cp 20 time 796 nodes 480822 nps 845007 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 e7e5 b1c3 f8b4
+info depth 11 score cp 20 time 2691 nodes 1654865 nps 865133 pv g1f3 b8c6 d2d4 e7e6 e2e3 g8e7 f1b5 d7d5 e1g1 a7a6 b5d3
+info depth 12 score cp 14 time 5102 nodes 2121228 nps 872100 pv g1f3 g8f6 e2e3 b8c6 f1b5 e7e5 b1c3 e5e4 f3g5 d7d5 b5c6
+ b7c6 e1g1
+info depth 13 score cp 21 time 21564 nodes 14061295 nps 858387 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 b4c3 d2c3 d7d6 e5f3
+ f6e4 f3d4
+info depth 13 score cp 21 time 60001 nodes 32408730 nps 848642 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 b4c3 d2c3 d7d6 e5f3
+ f6e4 f3d4
 bestmove e2e4
 '''

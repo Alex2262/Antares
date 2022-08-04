@@ -32,7 +32,7 @@ def main():
 
     print(make_readable_board(main_position))
 
-    main_engine.max_time = 20
+    main_engine.max_time = 20000
     main_engine.max_depth = 3
     iterative_search(main_engine, main_position, True)
 
@@ -41,7 +41,7 @@ def main():
 
     print(time.time() - start)
     
-    main_engine.max_time = 60
+    main_engine.max_time = 60000
     main_engine.max_depth = 15
     iterative_search(main_engine, main_position, False)
 

@@ -74,7 +74,7 @@ def evaluate(position):
     white_end_scores = 0
     black_end_scores = 0
 
-    pawn_rank = np.zeros((2, 10), dtype=nb.uint8)
+    pawn_rank = np.zeros((2, 10), dtype=np.uint8)
 
     game_phase = 0
     board = position.board
@@ -87,13 +87,15 @@ def evaluate(position):
     for i in range(64):
         pos = STANDARD_TO_MAILBOX[i]
         piece = board[pos]
+        row = 8 - i // 8
+        f = i % 8 + 1
         if piece == WHITE_PAWN:
-            if pawn_rank[0][i + 1] < 8 - i // 8:
-                pawn_rank[0][i + 1] = 8 - i // 8
+            if pawn_rank[0][f] < row:
+                pawn_rank[0][f] = row
 
         elif piece == BLACK_PAWN:
-            if pawn_rank[1][i + 1] > 8 - i // 8:
-                pawn_rank[1][i + 1] = 8 - i // 8
+            if pawn_rank[1][f] > row:
+                pawn_rank[1][f] = row
 
     for i in range(64):
         pos = STANDARD_TO_MAILBOX[i]
@@ -133,8 +135,8 @@ def evaluate(position):
     return (position.side * -2 + 1) * SCORE_TYPE(white_score - black_score + TEMPO_BONUS)
 
 
-# @nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
+# @nb.njit
 def score_move(engine, move, tt_move):
 
     if move == tt_move:
@@ -209,8 +211,8 @@ def score_move(engine, move, tt_move):
     return score
 
 
-# @nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
+# @nb.njit
 def score_capture(move):
 
     score = 0

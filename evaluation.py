@@ -20,7 +20,7 @@ def evaluate_pawn(position, pawn_rank, pos):
             mid_score -= DOUBLED_PAWN_PENALTY
             end_score -= ENDGAME_DOUBLED_PAWN_PENALTY
 
-        '''if pawn_rank[0][f - 1] == 0 and pawn_rank[0][f + 1] == 0:
+        if pawn_rank[0][f - 1] == 0 and pawn_rank[0][f + 1] == 0:
             
             if pawn_rank[1][f] == 9:
                 # The isolated pawn in the middle game is worse if the opponent
@@ -54,13 +54,49 @@ def evaluate_pawn(position, pawn_rank, pos):
              pawn_rank[1][f] <= row and\
              pawn_rank[1][f + 1] <= row:
             mid_score += row * PASSED_PAWN_BONUS
-            end_score += row * ENDGAME_PASSED_PAWN_BONUS'''
+            end_score += row * ENDGAME_PASSED_PAWN_BONUS
 
     else:
 
         if pawn_rank[1][f] < row:
             mid_score -= DOUBLED_PAWN_PENALTY
             end_score -= ENDGAME_DOUBLED_PAWN_PENALTY
+
+        if pawn_rank[1][f - 1] == 9 and pawn_rank[1][f + 1] == 9:
+
+            if pawn_rank[0][f] == 0:
+                # The isolated pawn in the middle game is worse if the opponent
+                # has the semi open file to attack it.
+                mid_score -= 1.5 * ISOLATED_PAWN_PENALTY
+
+                # In the endgame it can be slightly better since it has the chance to become passed
+                end_score -= 0.8 * ENDGAME_ISOLATED_PAWN_PENALTY
+            else:
+                mid_score -= ISOLATED_PAWN_PENALTY
+                end_score -= ENDGAME_ISOLATED_PAWN_PENALTY
+
+        elif pawn_rank[1][f - 1] < row and pawn_rank[1][f + 1] < row:
+            # In the middle game it's worse to have a very backwards pawn
+            # since then, the 'forwards' pawns won't be protected
+            mid_score -= BACKWARDS_PAWN_PENALTY + \
+                         2 * (row - pawn_rank[1][f - 1] + row - pawn_rank[1][f + 1] - 2)
+
+            # In the end game the backwards pawn should be worse, but if it's very backwards it's not awful.
+            end_score -= ENDGAME_BACKWARDS_PAWN_PENALTY + \
+                         row - pawn_rank[1][f - 1] + row - pawn_rank[1][f + 1] - 2
+
+            # If there's no enemy pawn in front of our pawn then it's even worse, since
+            # we allow outposts and pieces to attack us easily
+            if pawn_rank[0][f] == 0:
+                # In the middle game it is worse since enemy pieces can use the semi-open file and outpost.
+                mid_score -= 3 * BACKWARDS_PAWN_PENALTY
+                end_score -= BACKWARDS_PAWN_PENALTY
+
+        if pawn_rank[0][f - 1] >= row and \
+                pawn_rank[0][f] >= row and \
+                pawn_rank[0][f + 1] >= row:
+            mid_score += (8 - row) * PASSED_PAWN_BONUS
+            end_score += (8 - row) * ENDGAME_PASSED_PAWN_BONUS
 
     return mid_score, end_score
 

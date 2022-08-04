@@ -151,10 +151,10 @@ ENDGAME_PASSED_PAWN_BONUS = 25
 PST = np.array((
         # Pawns in the center are good.
         # Pawns near the king (generally the king side) are good.
-        # Pawns on the 7th rank are very good comparative to their column.
+        # Pawns on the 7th rank do not get high PST values since they get past pawn bonuses
         (    0,   0,   0,   0,   0,   0,   0,   0,
-            80,  90,  95,  95,  95,  90,  80,  70,
-            10,  15,  20,  30,  40,  20,  15,   5,
+             0,  10,  15,  15,  15,  10,   0, -10,
+            10,  15,  20,  25,  35,  20,  15,   0,
              3,   4,  15,  20,  25,  15,   4,  -2,
              0,   0,  10,  15,  17,   5,   0,  -4,
              2,   2,   0,   2,   4,  -5,  12,   0,
@@ -204,18 +204,18 @@ PST = np.array((
            -20, -30, -30, -40, -40, -30, -30, -20,
            -10, -20, -20, -40, -40, -20, -20, -10,
             14,  18, -10, -55, -55, -15,  15,  14,
-            21,  35,   3, -50,   0, -20,  32,  22),
+            21,  35,   3, -30,   0, -20,  32,  22),
 ))
 
 ENDGAME_PST = np.array((
-        # Pawns on the 6th and 7th rank are excellent.
+        # Pawns on the 6th and 7th rank are excellent, but they get past pawn bonuses rather than big PST scores.
         # Let pawns stay on the second rank unless they can be pushed forwards.
         # Pawns on the flank files are better when they are pushed more
         # since they can become outside passed pawns
         (    0,   0,   0,   0,   0,   0,   0,   0,
-           145, 135, 130, 125, 125, 125, 135, 145,
-            95,  90,  80,  70,  60,  60,  80,  85,
-            20,  20,  10,  16,  16,  10,  15,  15,
+            55,  50,  40,  30,  30,  35,  45,  50,
+            35,  30,  25,  20,  20,  25,  30,  35,
+            20,  20,  10,  16,  16,  10,  15,  20,
             10,   0,   5,   4,   4,   5,   0,   0,
              2,   2,   0,   3,   3,   0,   2,   2,
             10,  10,   5,   5,   5,   3,   1,   0,

@@ -962,4 +962,22 @@ info depth 14 score cp 28 time 21951 nodes 12262659 nps 930324 pv g1f3 d7d5 d2d4
 info depth 14 score cp 28 time 60001 nodes 35898492 nps 938658 pv g1f3 d7d5 d2d4 g8f6 e2e3 b8d7 f1b5 e7e6 e1g1 f8d6
  b1c3 e8g8 d1d3 e6e5
 bestmove g1f3
+
+
+Backwards pawn + Isolated pawn + Passed Pawn
+info depth 1 score cp 58 time 8 nodes 21 nps 2518 pv b1c3
+info depth 2 score cp 8 time 8 nodes 41 nps 7092 pv b1c3 b8c6
+info depth 3 score cp 58 time 8 nodes 117 nps 20027 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 11 nodes 140 nps 28464 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 51 time 13 nodes 1503 nps 137128 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 8 time 24 nodes 8419 nps 423992 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 38 time 36 nodes 10680 nps 571316 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 d2d3
+info depth 8 score cp 35 time 98 nodes 53542 nps 754255 pv b1c3 b8c6 d2d4 g8f6 c1f4 d7d5 c3b5 e7e5
+info depth 9 score cp 33 time 222 nodes 104081 nps 803297 pv b1c3 b8c6 d2d4 g8f6 c1f4 e7e6 g1f3 d7d5 e2e3
+info depth 10 score cp 30 time 594 nodes 311294 nps 823268 pv b1c3 b8c6 d2d4 g8f6 d4d5 c6e5 f2f4 e5c4 e2e4 c4d6
+info depth 11 score cp 28 time 2943 nodes 2020279 nps 852822 pv b1c3 d7d5 e2e3 g8f6 g1f3 b8d7 d2d4 e7e6
+info depth 12 score cp 33 time 6024 nodes 2674507 nps 860539 pv g1f3 d7d5 d2d4 g8f6 e2e3 e7e6 f1b5 b8d7 b1c3 f8b4 e1g1 e8g8 d1d3
+info depth 13 score cp 37 time 28802 nodes 19440292 nps 854968 pv e2e4 e7e5 g1f3 g8f6 b1c3
+info depth 13 score cp 37 time 60000 nodes 26914958 nps 858985 pv e2e4 e7e5 g1f3 g8f6 b1c3
+bestmove e2e4
 '''

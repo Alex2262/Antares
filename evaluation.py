@@ -118,6 +118,9 @@ def evaluate(position):
     # Having a ten element array gives padding on the side to prevent out of bounds exceptions.
     pawn_rank = np.zeros((2, 10), dtype=np.uint8)
 
+    white_bishops = 0
+    black_bishops = 0
+
     game_phase = 0
     board = position.board
 
@@ -155,6 +158,9 @@ def evaluate(position):
                 white_mid_scores += pawn_scores[0]
                 white_end_scores += pawn_scores[1]
 
+            elif piece == WHITE_BISHOP:
+                white_bishops += 1
+
         elif piece < EMPTY:
             black_mid_scores += PIECE_VALUES[piece - 6]
             black_end_scores += ENDGAME_PIECE_VALUES[piece - 6]
@@ -167,6 +173,17 @@ def evaluate(position):
                 pawn_scores = evaluate_pawn(position, pawn_rank, pos)
                 black_mid_scores += pawn_scores[0]
                 black_end_scores += pawn_scores[1]
+
+            elif piece == BLACK_BISHOP:
+                black_bishops += 1
+
+    if white_bishops >= 2:
+        white_mid_scores += BISHOP_PAIR_BONUS
+        white_end_scores += ENDGAME_BISHOP_PAIR_BONUS
+
+    if black_bishops >= 2:
+        black_mid_scores += BISHOP_PAIR_BONUS
+        black_end_scores += ENDGAME_BISHOP_PAIR_BONUS
 
     white_score = (white_mid_scores * game_phase +
                    (24 - game_phase) * white_end_scores) / 24
@@ -206,14 +223,13 @@ def score_move(engine, move, tt_move):
                 score += 8000
             # score history move
             else:
-                score += engine.history_moves[selected][standard_to_square]
+                score += 500 + engine.history_moves[selected][standard_to_square]
 
         if move_type == 3:  # Promotions
-            score += 15000
-            score += PIECE_VALUES[get_promotion_piece(move)]
+            score += 15000 + PIECE_VALUES[get_promotion_piece(move)]
 
         elif move_type == 2:  # Castling
-            score += 1000
+            score += 1000     # Helps to incentivize castling
 
         elif move_type == 1:  # En Passant
             score += 2000
@@ -235,11 +251,10 @@ def score_move(engine, move, tt_move):
                 score += 8000
             # score history move
             else:
-                score += engine.history_moves[selected - BLACK_PAWN][standard_to_square]
+                score += 500 + engine.history_moves[selected][standard_to_square]
 
         if move_type == 3:  # Promotions
-            score += 15000
-            score += PIECE_VALUES[get_promotion_piece(move) - BLACK_PAWN]
+            score += 15000 + PIECE_VALUES[get_promotion_piece(move) - BLACK_PAWN]
 
         elif move_type == 2:  # Castling
             score += 1000

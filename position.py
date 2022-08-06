@@ -216,14 +216,12 @@ def make_move(position, move):
         position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
 
     # Change the king position for check detection
-    if selected == WHITE_KING:
-        position.white_king_position = to_square
-    elif selected == BLACK_KING:
-        position.black_king_position = to_square
+    if selected == WHITE_KING or selected == BLACK_KING:
+        position.king_positions[position.side] = to_square
 
     # Legal move checking.
     # Return False if we are in check after our move or castling isn't legal.
-    if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
+    if is_attacked(position, position.king_positions[position.side]):
         return False
     elif castled_pos[0]:
         # If we have castled, then we already checked to_square with is_attacked since the king moved.
@@ -328,10 +326,8 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
     position.castle_ability_bits = current_castle_ability_bits
 
     # Reset the king position if it has moved
-    if selected == WHITE_KING:
-        position.white_king_position = from_square
-    elif selected == BLACK_KING:
-        position.black_king_position = from_square
+    if selected == WHITE_KING or selected == BLACK_KING:
+        position.king_positions[position.side] = from_square
 
 
 # @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
@@ -345,12 +341,10 @@ def make_capture(position, move):
     position.board[to_square] = selected
     position.board[from_square] = EMPTY
 
-    if selected == WHITE_KING:
-        position.white_king_position = to_square
-    elif selected == BLACK_KING:
-        position.black_king_position = to_square
+    if selected == WHITE_KING or selected == BLACK_KING:
+        position.king_positions[position.side] = to_square
 
-    if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
+    if is_attacked(position, position.king_positions[position.side]):
         return False
 
     return True
@@ -368,10 +362,8 @@ def undo_capture(position, move):
     position.board[to_square] = occupied
     position.board[from_square] = selected
 
-    if selected == WHITE_KING:
-        position.white_king_position = from_square
-    elif selected == BLACK_KING:
-        position.black_king_position = from_square
+    if selected == WHITE_KING or selected == BLACK_KING:
+        position.king_positions[position.side] = from_square
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type), cache=True)
@@ -427,9 +419,9 @@ def parse_fen(position, fen_string):
                     idx += j
             position.board[pos] = idx
             if i == 'K':
-                position.white_king_position = pos
+                position.king_positions[0] = pos
             elif i == 'k':
-                position.black_king_position = pos
+                position.king_positions[1] = pos
             pos += 1
 
     # -- boundaries for 12x10 mailbox --

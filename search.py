@@ -173,7 +173,7 @@ def negamax(engine, position, alpha, beta, depth):
     # Used at the end of the negamax function to determine checkmates, stalemates, etc.
     legal_moves = 0
     in_check = is_attacked(position,
-                           position.black_king_position if position.side else position.white_king_position)
+                           position.king_positions[position.side])
 
     # Check extension
     if in_check:
@@ -673,7 +673,7 @@ bestmove e2e4
 
 MANY BUG FIXES. 
 Move scorer wasn't scoring some quiet moves.
-Search went straight to LMR instead of searching first moves.
+Search went straight to LMR/PVS instead of searching first moves.
 info depth 1 score cp 94 time 841 nodes 21 nps 24 pv b1c3
 info depth 2 score cp 50 time 841 nodes 60 nps 96 pv b1c3 g8f6
 info depth 3 score cp 94 time 842 nodes 159 nps 285 pv b1c3 g8f6 g1f3
@@ -921,26 +921,6 @@ info depth 14 score cp 53 time 28809 nodes 22901060 nps 1188960 pv g1f3 b8c6 d2d
 info depth 14 score cp 53 time 60000 nodes 1 nps 570880 pv g1f3 b8c6 d2d4 e7e6 e2e4 g8f6 d4d5 e6d5 e4d5 d8e7
 bestmove g1f3
 
-Checking repetitions for null moves. Disables double null moves?
-info depth 1 score cp 96 time 27 nodes 21 nps 770 pv b1c3
-info depth 2 score cp 46 time 27 nodes 41 nps 2242 pv b1c3 b8c6
-info depth 3 score cp 96 time 27 nodes 117 nps 6436 pv b1c3 b8c6 g1f3
-info depth 4 score cp 46 time 29 nodes 140 nps 10685 pv b1c3 b8c6 g1f3 g8f6
-info depth 5 score cp 89 time 31 nodes 1487 nps 57491 pv b1c3 b8c6 g1f3 g8f6 e2e4
-info depth 6 score cp 46 time 40 nodes 9325 nps 271711 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
-info depth 7 score cp 76 time 52 nodes 12424 nps 449874 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
-info depth 8 score cp 45 time 138 nodes 94242 nps 851657 pv d2d4 b8c6 e2e4 g8f6 e4e5 f6d5 c2c4 d5b4
-info depth 9 score cp 72 time 436 nodes 333643 nps 1035308 pv e2e4 b8c6 d2d4 d7d5
-info depth 10 score cp 72 time 665 nodes 267608 nps 1080740 pv e2e4 b8c6 g1f3 e7e5 b1c3 g8f6 d2d4 e5d4 f3d4
-info depth 11 score cp 63 time 1113 nodes 524407 nps 1117204 pv e2e4 b8c6 g1f3 e7e5 b1c3 g8f6 f1b5 c6d4 e1g1 d4b5 c3b5
-info depth 12 score cp 60 time 4680 nodes 4285813 nps 1181448 pv d2d4 d7d5 g1f3 b8c6 e2e3 g8f6 f1d3 f6e4 e1g1 e7e6 b1c3
- f8b4
-info depth 13 score cp 56 time 12953 nodes 9629856 nps 1170255 pv d2d4 d7d5 g1f3 e7e6 e2e3 g8f6 f1d3 b8c6 e1g1 f8d6 b1c3
- e8g8 c1d2
-info depth 14 score cp 50 time 56961 nodes 52658177 nps 1190582 pv g1f3 b8c6 d2d4 d7d5 e2e3 g8f6 f1b5 a7a6 b5e2 c8g4
-info depth 14 score cp 50 time 60000 nodes 1 nps 1130281 pv g1f3 b8c6 d2d4 d7d5 e2e3 g8f6 f1b5 a7a6 b5e2 c8g4
-bestmove g1f3
-
 Doubled pawns and tempo
 info depth 1 score cp 58 time 29 nodes 21 nps 708 pv b1c3
 info depth 2 score cp 8 time 30 nodes 41 nps 2055 pv b1c3 b8c6
@@ -1002,5 +982,65 @@ info depth 13 score cp 21 time 21564 nodes 14061295 nps 858387 pv e2e4 e7e5 b1c3
  f6e4 f3d4
 info depth 13 score cp 21 time 60001 nodes 32408730 nps 848642 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 b4c3 d2c3 d7d6 e5f3
  f6e4 f3d4
+bestmove e2e4
+
+king_positions variable instead of white and black king position
+info depth 1 score cp 42 time 24 nodes 21 nps 853 pv b1c3
+info depth 2 score cp 8 time 25 nodes 60 nps 3223 pv b1c3 b8c6
+info depth 3 score cp 42 time 25 nodes 138 nps 8647 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 26 nodes 997 nps 45162 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 29 nodes 1322 nps 86603 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 38 nodes 7227 nps 253267 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 49 nodes 9952 nps 401576 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 82 nodes 30351 nps 603329 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 13 time 243 nodes 142516 nps 791305 pv g1f3 g8f6 d2d4 d7d5 b1c3 b8c6
+info depth 10 score cp 20 time 779 nodes 480822 nps 864263 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 e7e5 b1c3 f8b4
+info depth 11 score cp 20 time 2649 nodes 1654865 nps 878616 pv g1f3 b8c6 d2d4 e7e6 e2e3 g8e7 f1b5 d7d5 e1g1 a7a6 b5d3
+info depth 12 score cp 14 time 5007 nodes 2121228 nps 888639 pv g1f3 g8f6 e2e3 b8c6 f1b5 e7e5 b1c3 e5e4 f3g5 d7d5 
+b5c6 b7c6 e1g1
+info depth 13 score cp 21 time 20717 nodes 14061295 nps 893494 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 b4c3 d2c3 d7d6 
+e5f3 f6e4 f3d4
+info depth 13 score cp 21 time 60000 nodes 34493582 nps 883394 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 b4c3 d2c3 d7d6 
+e5f3 f6e4 f3d4
+bestmove e2e4
+
+History bug fixed
+info depth 1 score cp 42 time 32 nodes 21 nps 641 pv b1c3
+info depth 2 score cp 8 time 33 nodes 60 nps 2446 pv b1c3 b8c6
+info depth 3 score cp 42 time 33 nodes 138 nps 6577 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 34 nodes 997 nps 34826 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 36 nodes 1322 nps 69255 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 45 nodes 7156 nps 211144 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 56 nodes 9979 nps 347334 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 90 nodes 29440 nps 543658 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 20 time 175 nodes 75861 nps 711260 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 8 time 613 nodes 381581 nps 825980 pv b1c3 b8c6 g1f3 d7d5 d2d4 g8f6 e2e3 e7e6 f1b5 f8b4
+info depth 11 score cp 9 time 1576 nodes 852019 nps 861605 pv b1c3 d7d5 g1f3 g8f6 e2e3 e7e6 f1d3 b8c6 e1g1 f8b4 d3b5
+info depth 12 score cp 18 time 6737 nodes 4496815 nps 869034 pv e2e4 e7e5 g1f3 g8f6 b1c3 f8b4 f3e5 d7d6 e5d3 b4c3 d2c3
+ f6e4
+info depth 13 score cp 11 time 17172 nodes 8951968 nps 862287 pv e2e4 e7e5 g1f3 g8f6 b1c3 b8c6 f1b5 f8b4 d1e2 d8e7 b5c6
+ d7c6 e1g1
+info depth 13 score cp 11 time 60000 nodes 36785290 nps 859876 pv e2e4 e7e5 g1f3 g8f6 b1c3 b8c6 f1b5 f8b4 d1e2 d8e7 b5c6
+ d7c6 e1g1
+bestmove e2e4
+
+Bishop pair bonus
+info depth 1 score cp 42 time 9 nodes 21 nps 2103 pv b1c3
+info depth 2 score cp 8 time 10 nodes 60 nps 7813 pv b1c3 b8c6
+info depth 3 score cp 42 time 10 nodes 138 nps 20770 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 12 nodes 1000 nps 101062 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 13 nodes 1325 nps 185625 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 22 nodes 7153 nps 425009 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 33 nodes 10004 nps 583336 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 67 nodes 29463 nps 728387 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 20 time 160 nodes 81760 nps 816260 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 22 time 762 nodes 532351 nps 870229 pv e2e4 b8c6 g1f3 g8f6 b1c3
+info depth 11 score cp 29 time 1997 nodes 1100221 nps 882901 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 b8c6 g1f3 c8d7 f1b5
+info depth 12 score cp 26 time 3972 nodes 1774319 nps 890468 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 g1f3 e7e6 c2c4 d5f6 b1c3
+ b8c6
+info depth 13 score cp 24 time 11605 nodes 6650635 nps 877935 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+ b7c6 d2d4 g8f6 b1c3
+info depth 13 score cp 24 time 60001 nodes 41794779 nps 866372 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+ b7c6 d2d4 g8f6 b1c3
 bestmove e2e4
 '''

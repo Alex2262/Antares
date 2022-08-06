@@ -131,7 +131,7 @@ BLACK_ATK_INCREMENTS = np.array((
 
 
 GAME_PHASE_SCORES = np.array((0, 1, 1, 2, 4, 0))
-PIECE_VALUES = np.array((82, 326, 352, 486, 982, 0))
+PIECE_VALUES = np.array((82, 326, 352, 486, 982, 0))  # I like even numbers :D especially 2 and 6
 ENDGAME_PIECE_VALUES = np.array((96, 292, 304, 512, 936, 0))
 
 TEMPO_BONUS = 8
@@ -147,6 +147,9 @@ ENDGAME_BACKWARDS_PAWN_PENALTY = 8  # Give this a higher base score, but we redu
 
 PASSED_PAWN_BONUS = 15
 ENDGAME_PASSED_PAWN_BONUS = 25
+
+BISHOP_PAIR_BONUS = 55
+ENDGAME_BISHOP_PAIR_BONUS = 25
 
 PST = np.array((
         # Pawns in the center are good.

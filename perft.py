@@ -49,7 +49,7 @@ def debug_perft(position, depth):
             elif move_type == MOVE_TYPE_CASTLE:
                 castle_amt += 1
 
-            if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
+            if is_attacked(position, position.king_positions[position.side]):
                 check_amt += 1
 
         returned = debug_perft(position, depth - 1)

@@ -17,10 +17,10 @@ from utilities import NO_MOVE
 
 def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
     rate = 20
-    if is_attacked(position, position.black_king_position if position.side else position.white_king_position):
-        rate -= 4
+    if is_attacked(position, position.king_positions[position.side]):
+        rate -= 3
     if get_is_capture(last_move):
-        rate -= 2
+        rate -= 1.5
 
     if movetime > 0:
         time_amt = movetime * 0.9
@@ -28,7 +28,7 @@ def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
         if time < inc:
             time_amt = time / (rate / 10)
         else:
-            time_amt = max(inc + (time - inc * rate) / (rate*2), time / (rate*2))
+            time_amt = max(0.9 * inc + (time - inc * rate) / (rate*2), time / (rate*2))
     elif movestogo > 0:
         time_amt = (time * 0.8 / movestogo) * (20 / rate)
         if time_amt > time * 0.8:

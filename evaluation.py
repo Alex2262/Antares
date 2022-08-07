@@ -129,53 +129,64 @@ def evaluate(position):
         pawn_rank[0][i] = 9
         pawn_rank[1][i] = 0
 
-    for i in range(64):
-        pos = STANDARD_TO_MAILBOX[i]
+    for pos in position.white_pieces:
         piece = board[pos]
+        i = MAILBOX_TO_STANDARD[pos]
         row = 8 - i // 8
         f = i % 8 + 1
         if piece == WHITE_PAWN:
             if row < pawn_rank[0][f]:
                 pawn_rank[0][f] = row
 
-        elif piece == BLACK_PAWN:
+    for pos in position.black_pieces:
+        piece = board[pos]
+        i = MAILBOX_TO_STANDARD[pos]
+        row = 8 - i // 8
+        f = i % 8 + 1
+
+        if piece == BLACK_PAWN:
             if row > pawn_rank[1][f]:
                 pawn_rank[1][f] = row
 
-    for i in range(64):
-        pos = STANDARD_TO_MAILBOX[i]
+    for pos in position.white_pieces:
+
         piece = board[pos]
-        if piece < BLACK_PAWN:
-            white_mid_scores += PIECE_VALUES[piece]
-            white_end_scores += ENDGAME_PIECE_VALUES[piece]
-            white_mid_scores += PST[piece][i]
-            white_end_scores += ENDGAME_PST[piece][i]
+        i = MAILBOX_TO_STANDARD[pos]
 
-            game_phase += GAME_PHASE_SCORES[piece]
+        white_mid_scores += PIECE_VALUES[piece]
+        white_end_scores += ENDGAME_PIECE_VALUES[piece]
+        white_mid_scores += PST[piece][i]
+        white_end_scores += ENDGAME_PST[piece][i]
 
-            if piece == WHITE_PAWN:
-                pawn_scores = evaluate_pawn(position, pawn_rank, pos)
-                white_mid_scores += pawn_scores[0]
-                white_end_scores += pawn_scores[1]
+        game_phase += GAME_PHASE_SCORES[piece]
 
-            elif piece == WHITE_BISHOP:
-                white_bishops += 1
+        if piece == WHITE_PAWN:
+            pawn_scores = evaluate_pawn(position, pawn_rank, pos)
+            white_mid_scores += pawn_scores[0]
+            white_end_scores += pawn_scores[1]
 
-        elif piece < EMPTY:
-            black_mid_scores += PIECE_VALUES[piece - 6]
-            black_end_scores += ENDGAME_PIECE_VALUES[piece - 6]
-            black_mid_scores += PST[piece - 6][i ^ 56]
-            black_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
+        elif piece == WHITE_BISHOP:
+            white_bishops += 1
 
-            game_phase += GAME_PHASE_SCORES[piece-6]
+    for pos in position.black_pieces:
 
-            if piece == BLACK_PAWN:
-                pawn_scores = evaluate_pawn(position, pawn_rank, pos)
-                black_mid_scores += pawn_scores[0]
-                black_end_scores += pawn_scores[1]
+        piece = board[pos]
+        i = MAILBOX_TO_STANDARD[pos]
 
-            elif piece == BLACK_BISHOP:
-                black_bishops += 1
+        black_mid_scores += PIECE_VALUES[piece - 6]
+        black_end_scores += ENDGAME_PIECE_VALUES[piece - 6]
+        black_mid_scores += PST[piece - 6][i ^ 56]
+        black_end_scores += ENDGAME_PST[piece - 6][i ^ 56]
+
+        game_phase += GAME_PHASE_SCORES[piece-6]
+
+        if piece == BLACK_PAWN:
+            pawn_scores = evaluate_pawn(position, pawn_rank, pos)
+            black_mid_scores += pawn_scores[0]
+            black_end_scores += pawn_scores[1]
+
+        elif piece == BLACK_BISHOP:
+            black_bishops += 1
 
     if white_bishops >= 2:
         white_mid_scores += BISHOP_PAIR_BONUS
@@ -185,6 +196,7 @@ def evaluate(position):
         black_mid_scores += BISHOP_PAIR_BONUS
         black_end_scores += ENDGAME_BISHOP_PAIR_BONUS
 
+    game_phase = min(game_phase, 24)  # promotions
     white_score = (white_mid_scores * game_phase +
                    (24 - game_phase) * white_end_scores) / 24
 

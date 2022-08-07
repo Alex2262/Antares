@@ -23,14 +23,12 @@ def encode_move(from_square, to_square, selected, occupied, move_type, promotion
         promotion_piece << 25 | is_capture << 29
 
 
-# @nb.njit(nb.int8(nb.uint32), cache=True)
-@nb.njit
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_from_square(move):
     return move & 0x7f
 
 
-# @nb.njit(nb.int8(MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(nb.int8(MOVE_TYPE), cache=True)
 def get_to_square(move):
     return (move & 0x3f80) >> 7
 

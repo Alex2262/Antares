@@ -33,8 +33,10 @@ def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
         time_amt = (time * 0.8 / movestogo) * (20 / rate)
         if time_amt > time * 0.8:
             time_amt = time * 0.85
-    else:
+    elif time > 0:
         time_amt = time / rate
+    else:
+        time_amt = engine.max_time
 
     engine.max_time = int(time_amt)
 
@@ -43,7 +45,6 @@ def parse_go(engine, position, msg, last_move):
     """parse 'go' uci command"""
 
     d = engine.max_depth
-    t = engine.max_time
 
     _, *params = msg.split()
 
@@ -110,7 +111,7 @@ def main():
             break
 
         elif msg == "uci" or msg.startswith("uciok"):
-            print("id name AntaresPy2.22")
+            print("id name AntaresPy2.26")
             print("id author Alexander_Tian")
             print("uciok")
             continue
@@ -135,7 +136,7 @@ def main():
 
             elif tokens[1] == "fen":
                 fen = " ".join(tokens[2:8])
-                parse_fen(main_position, start_fen)
+                parse_fen(main_position, fen)
                 next_idx = 8
 
             else:
@@ -169,4 +170,4 @@ def clear_cache():
 
 if __name__ == "__main__":
     main()
-    #clear_cache()
+    # clear_cache()

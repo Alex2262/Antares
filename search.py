@@ -35,11 +35,11 @@ def reset(engine):
     engine.current_search_depth = 0
     engine.ply = 0
 
-    engine.pv_table = np.zeros((engine.max_depth, engine.max_depth), dtype=np.uint64)
-    engine.pv_length = np.zeros(engine.max_depth+1, dtype=np.uint64)
+    engine.pv_table = np.zeros((engine.max_depth, engine.max_depth), dtype=np.uint32)
+    engine.pv_length = np.zeros(engine.max_depth+1, dtype=np.uint16)
 
-    engine.killer_moves = np.zeros((2, engine.max_depth), dtype=np.uint64)
-    engine.history_moves = np.zeros((12, 64), dtype=np.uint64)
+    engine.killer_moves = np.zeros((2, engine.max_depth), dtype=np.uint32)
+    engine.history_moves = np.zeros((12, 64), dtype=np.uint32)
     engine.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
 
     engine.stopped = False
@@ -345,9 +345,6 @@ def iterative_search(engine, position, compiling):
 
     original_side = position.side
 
-    # Total nodes
-    node_sum = 0
-
     # Prepare window for negamax search
     alpha = -INF
     beta = INF
@@ -360,7 +357,6 @@ def iterative_search(engine, position, compiling):
     while running_depth <= engine.max_depth:
 
         # Reset engine variables
-        engine.node_count = 0
         engine.current_search_depth = running_depth
 
         # Negamax search
@@ -376,8 +372,6 @@ def iterative_search(engine, position, compiling):
         alpha = returned - ASPIRATION_VAL
         beta = returned + ASPIRATION_VAL
 
-        # Add to total node counts
-        node_sum += engine.node_count
         # Obtain principle variation line and print it
         pv_line = []
         for c in range(engine.pv_length[0]):
@@ -397,14 +391,17 @@ def iterative_search(engine, position, compiling):
         if not compiling:
             print("info depth", running_depth, "score cp", best_score,
                   "time", int((end_time - engine.start_time) * 1000), "nodes", engine.node_count,
-                  "nps", int(node_sum / max((end_time - engine.start_time), 0.0001)), "pv", ' '.join(best_pv))
+                  "nps", int(engine.node_count / max((end_time - engine.start_time), 0.0001)), "pv", ' '.join(best_pv))
 
         running_depth += 1
 
         if engine.stopped:
-            if not compiling:
-                print("bestmove", best_pv[0])
             break
+
+    if not compiling:
+        print("bestmove", best_pv[0])
+
+    return
 
 
 def compile_engine(engine, position):
@@ -1024,23 +1021,43 @@ info depth 13 score cp 11 time 60000 nodes 36785290 nps 859876 pv e2e4 e7e5 g1f3
  d7c6 e1g1
 bestmove e2e4
 
-Bishop pair bonus
-info depth 1 score cp 42 time 9 nodes 21 nps 2103 pv b1c3
-info depth 2 score cp 8 time 10 nodes 60 nps 7813 pv b1c3 b8c6
-info depth 3 score cp 42 time 10 nodes 138 nps 20770 pv b1c3 b8c6 g1f3
-info depth 4 score cp 8 time 12 nodes 1000 nps 101062 pv b1c3 b8c6 g1f3 g8f6
-info depth 5 score cp 35 time 13 nodes 1325 nps 185625 pv b1c3 b8c6 g1f3 g8f6 e2e4
-info depth 6 score cp 2 time 22 nodes 7153 nps 425009 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
-info depth 7 score cp 16 time 33 nodes 10004 nps 583336 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
-info depth 8 score cp 12 time 67 nodes 29463 nps 728387 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
-info depth 9 score cp 20 time 160 nodes 81760 nps 816260 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
-info depth 10 score cp 22 time 762 nodes 532351 nps 870229 pv e2e4 b8c6 g1f3 g8f6 b1c3
-info depth 11 score cp 29 time 1997 nodes 1100221 nps 882901 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 b8c6 g1f3 c8d7 f1b5
-info depth 12 score cp 26 time 3972 nodes 1774319 nps 890468 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 g1f3 e7e6 c2c4 d5f6 b1c3
+Bishop pair bonus + optimizations
+info depth 1 score cp 42 time 10 nodes 21 nps 2083 pv b1c3
+info depth 2 score cp 8 time 10 nodes 60 nps 7712 pv b1c3 b8c6
+info depth 3 score cp 42 time 10 nodes 138 nps 20488 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 12 nodes 1000 nps 98275 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 14 nodes 1325 nps 178525 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 24 nodes 7153 nps 402002 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 35 nodes 10004 nps 551832 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 69 nodes 29465 nps 703781 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 20 time 161 nodes 81745 nps 808891 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 22 time 751 nodes 533342 nps 883664 pv e2e4 b8c6 g1f3 g8f6 b1c3
+info depth 11 score cp 29 time 1959 nodes 1100658 nps 900560 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 b8c6 g1f3 c8d7 f1b5
+info depth 12 score cp 26 time 3889 nodes 1773146 nps 909566 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 g1f3 e7e6 c2c4 d5f6 b1c3
  b8c6
-info depth 13 score cp 24 time 11605 nodes 6650635 nps 877935 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+info depth 13 score cp 24 time 10947 nodes 6387008 nps 906635 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
  b7c6 d2d4 g8f6 b1c3
-info depth 13 score cp 24 time 60001 nodes 41794779 nps 866372 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+info depth 13 score cp 24 time 60000 nodes 44049689 nps 899564 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+ b7c6 d2d4 g8f6 b1c3
+bestmove e2e4
+
+piece lists
+info depth 1 score cp 42 time 4 nodes 21 nps 4288 pv b1c3
+info depth 2 score cp 8 time 5 nodes 60 nps 15390 pv b1c3 b8c6
+info depth 3 score cp 42 time 5 nodes 138 nps 40303 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 6 nodes 1000 nps 174244 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 35 time 8 nodes 1325 nps 293907 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 2 time 18 nodes 7159 nps 537947 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 28 nodes 10003 nps 687554 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 12 time 63 nodes 29520 nps 778892 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 20 time 157 nodes 81784 nps 829304 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 22 time 769 nodes 533813 nps 864509 pv e2e4 b8c6 g1f3 g8f6 b1c3
+info depth 11 score cp 29 time 2020 nodes 1101444 nps 874086 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 b8c6 g1f3 c8d7 f1b5
+info depth 12 score cp 26 time 3989 nodes 1756573 nps 882986 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 g1f3 e7e6 c2c4 d5f6 b1c3
+ b8c6
+info depth 13 score cp 24 time 11534 nodes 6433972 nps 863240 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
+ b7c6 d2d4 g8f6 b1c3
+info depth 13 score cp 24 time 60002 nodes 39771322 nps 828769 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
  b7c6 d2d4 g8f6 b1c3
 bestmove e2e4
 '''

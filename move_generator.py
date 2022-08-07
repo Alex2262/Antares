@@ -2,8 +2,8 @@
 
 from evaluation import score_move, score_capture
 from move import *
-from position_class import Position
-from search_class import Search
+# from position_class import Position
+# from search_class import Search
 
 
 # @nb.njit(nb.types.List(MOVE_TYPE)(Position.class_type.instance_type), cache=True)
@@ -13,11 +13,8 @@ def get_pseudo_legal_moves(position):
     board = position.board
 
     if position.side == 0:  # white
-        for i in range(64):
-            pos = STANDARD_TO_MAILBOX[i]
+        for pos in position.white_pieces:
             piece = board[pos]
-            if piece > WHITE_KING:  # if not own piece
-                continue
 
             for increment in WHITE_INCREMENTS[piece]:
                 if increment == 0:
@@ -76,11 +73,8 @@ def get_pseudo_legal_moves(position):
                                                  EMPTY, MOVE_TYPE_CASTLE, 0, 0))
 
     else:
-        for i in range(64):
-            pos = STANDARD_TO_MAILBOX[i]
+        for pos in position.black_pieces:
             piece = board[pos]
-            if piece < BLACK_PAWN or piece > BLACK_KING:  # if not own piece
-                continue
 
             for increment in BLACK_INCREMENTS[piece - BLACK_PAWN]:
                 if increment == 0:
@@ -149,12 +143,8 @@ def get_pseudo_legal_captures(position):
     board = position.board
 
     if position.side == 0:  # white
-        for i in range(64):
-            pos = STANDARD_TO_MAILBOX[i]
+        for pos in position.white_pieces:
             piece = board[pos]
-
-            if piece > WHITE_KING:  # if it's not own piece
-                continue
 
             for increment in WHITE_ATK_INCREMENTS[piece]:
                 if increment == 0:
@@ -175,12 +165,8 @@ def get_pseudo_legal_captures(position):
                     if piece in (WHITE_PAWN, WHITE_KNIGHT, WHITE_KING):  # if it is an opposing pawn, knight, or king
                         break
     else:
-        for i in range(64):
-            pos = STANDARD_TO_MAILBOX[i]
+        for pos in position.black_pieces:
             piece = board[pos]
-
-            if piece < BLACK_PAWN or piece > BLACK_KING:  # if not own piece
-                continue
 
             for increment in BLACK_ATK_INCREMENTS[piece - BLACK_PAWN]:
                 if increment == 0:

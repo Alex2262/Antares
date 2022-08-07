@@ -19,6 +19,7 @@ Functions in this file:
 
 from move import *
 from position_class import Position
+# from numba.typed import List
 
 
 PIECE_MATCHER = np.array((
@@ -29,6 +30,18 @@ PIECE_MATCHER = np.array((
     'Q',
     'K',
 ))
+
+
+@nb.njit()
+def reset_position(position):
+    position.board = np.zeros(120, dtype=np.int8)
+    position.white_pieces = [nb.int64(1) for _ in range(0)]
+    position.black_pieces = [nb.int64(1) for _ in range(0)]
+    position.king_positions = np.zeros(2, dtype=np.uint8)
+    position.castle_ability_bits = 0
+    position.ep_square = 0
+    position.side = 0
+    position.hash_key = 0
 
 
 @nb.njit(nb.uint64(Position.class_type.instance_type), cache=True)
@@ -150,7 +163,7 @@ def is_attacked(position, pos):
 def make_move(position, move):
 
     # Get move info
-    castled_pos = np.array([0, 0])
+    castled_pos = np.array([0, 0], dtype=np.int8)
     from_square = get_from_square(move)
     to_square = get_to_square(move)
     selected = get_selected(move)
@@ -170,11 +183,14 @@ def make_move(position, move):
         position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[to_square]]
 
         # Remove the en passant captured pawn and hash it
-        # If white to move, to_square - (0*20) + 10 == to_square + 10
-        # If black to move, to_square - (1*20) + 10 == to_square - 10
-        position.board[to_square - position.side * 20 + 10] = EMPTY
-        position.hash_key ^= PIECE_HASH_KEYS[
-            BLACK_PAWN - position.side * BLACK_PAWN][MAILBOX_TO_STANDARD[to_square - position.side * 20 + 10]]
+        if position.side == 0:
+            position.board[to_square + 10] = EMPTY
+            position.hash_key ^= PIECE_HASH_KEYS[BLACK_PAWN][MAILBOX_TO_STANDARD[to_square + 10]]
+            position.black_pieces.remove(to_square + 10)
+        else:
+            position.board[to_square - 10] = EMPTY
+            position.hash_key ^= PIECE_HASH_KEYS[WHITE_PAWN][MAILBOX_TO_STANDARD[to_square - 10]]
+            position.white_pieces.remove(to_square - 10)
 
     # Castling move
     elif move_type == MOVE_TYPE_CASTLE:
@@ -189,16 +205,25 @@ def make_move(position, move):
         else:
             castled_pos[0], castled_pos[1] = to_square + 1, to_square - 1  # H1/H8, F1/F8
 
-        # White Rook + position.side * 6 will calculate which side's rook will be used.
         # Move the rook and hash it
-        position.board[castled_pos[1]] = WHITE_ROOK + position.side * BLACK_PAWN
-        position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK + position.side * BLACK_PAWN][
-            MAILBOX_TO_STANDARD[castled_pos[1]]]
+        if position.side == 0:
+            position.board[castled_pos[1]] = WHITE_ROOK
+            position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK][MAILBOX_TO_STANDARD[castled_pos[1]]]
 
-        # Remove the rook from the source square and hash it
-        position.board[castled_pos[0]] = EMPTY
-        position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK + position.side * BLACK_PAWN][
-            MAILBOX_TO_STANDARD[castled_pos[0]]]
+            # Remove the rook from the source square and hash it
+            position.board[castled_pos[0]] = EMPTY
+            position.hash_key ^= PIECE_HASH_KEYS[WHITE_ROOK][MAILBOX_TO_STANDARD[castled_pos[0]]]
+
+            position.white_pieces[position.white_pieces.index(castled_pos[0])] = castled_pos[1]
+        else:
+            position.board[castled_pos[1]] = BLACK_ROOK
+            position.hash_key ^= PIECE_HASH_KEYS[BLACK_ROOK][MAILBOX_TO_STANDARD[castled_pos[1]]]
+
+            # Remove the rook from the source square and hash it
+            position.board[castled_pos[0]] = EMPTY
+            position.hash_key ^= PIECE_HASH_KEYS[BLACK_ROOK][MAILBOX_TO_STANDARD[castled_pos[0]]]
+
+            position.black_pieces[position.black_pieces.index(castled_pos[0])] = castled_pos[1]
 
     # Promotion move
     elif move_type == MOVE_TYPE_PROMOTION:
@@ -211,9 +236,16 @@ def make_move(position, move):
     position.board[from_square] = EMPTY
     position.hash_key ^= PIECE_HASH_KEYS[selected][MAILBOX_TO_STANDARD[from_square]]
 
-    # Hash out the occupied piece if it is a capture
-    if get_is_capture(move):
-        position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
+    if position.side == 0:
+        position.white_pieces[position.white_pieces.index(from_square)] = to_square
+        if get_is_capture(move):
+            position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
+            position.black_pieces.remove(to_square)
+    else:
+        position.black_pieces[position.black_pieces.index(from_square)] = to_square
+        if get_is_capture(move):
+            position.hash_key ^= PIECE_HASH_KEYS[occupied][MAILBOX_TO_STANDARD[to_square]]
+            position.white_pieces.remove(to_square)
 
     # Change the king position for check detection
     if selected == WHITE_KING or selected == BLACK_KING:
@@ -293,25 +325,48 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
     # En Passant move
     if move_type == MOVE_TYPE_EP:
         # Place the en passant captured pawn back and hash it
-        position.board[to_square - position.side * 20 + 10] = BLACK_PAWN - position.side * BLACK_PAWN
+        if position.side == 0:
+            position.board[to_square + 10] = BLACK_PAWN
+            position.black_pieces.append(to_square + 10)
+        else:
+            position.board[to_square - 10] = WHITE_PAWN
+            position.white_pieces.append(to_square - 10)
 
     # Castling move
     if move_type == MOVE_TYPE_CASTLE:
         # Queen side castle
         if to_square < from_square:
-            # Move the rook back
-            position.board[to_square - 2] = WHITE_ROOK + position.side * BLACK_PAWN
-
             # Remove the rook from the destination square
             position.board[from_square - 1] = EMPTY
-
+            if position.side == 0:
+                # Move the rook back
+                position.board[to_square - 2] = WHITE_ROOK
+                position.white_pieces[position.white_pieces.index(from_square - 1)] = to_square - 2
+            else:
+                # Move the rook back
+                position.board[to_square - 2] = BLACK_ROOK
+                position.black_pieces[position.black_pieces.index(from_square - 1)] = to_square - 2
         # King side castle
         else:
-            # Move the rook back
-            position.board[to_square + 1] = WHITE_ROOK + position.side * BLACK_PAWN
-
             # Remove the rook from the destination square
             position.board[from_square + 1] = EMPTY
+            if position.side == 0:
+                # Move the rook back
+                position.board[to_square + 1] = WHITE_ROOK
+                position.white_pieces[position.white_pieces.index(from_square + 1)] = to_square + 1
+            else:
+                # Move the rook back
+                position.board[to_square + 1] = BLACK_ROOK
+                position.black_pieces[position.black_pieces.index(from_square + 1)] = to_square + 1
+
+    if position.side == 0:
+        position.white_pieces[position.white_pieces.index(to_square)] = from_square
+        if get_is_capture(move):
+            position.black_pieces.append(to_square)
+    else:
+        position.black_pieces[position.black_pieces.index(to_square)] = from_square
+        if get_is_capture(move):
+            position.white_pieces.append(to_square)
 
     # Place occupied piece/value back in the destination square
     # Set the source square back to the selected piece
@@ -341,6 +396,13 @@ def make_capture(position, move):
     position.board[to_square] = selected
     position.board[from_square] = EMPTY
 
+    if position.side == 0:
+        position.white_pieces[position.white_pieces.index(from_square)] = to_square
+        position.black_pieces.remove(to_square)
+    else:
+        position.black_pieces[position.black_pieces.index(from_square)] = to_square
+        position.white_pieces.remove(to_square)
+
     if selected == WHITE_KING or selected == BLACK_KING:
         position.king_positions[position.side] = to_square
 
@@ -361,6 +423,13 @@ def undo_capture(position, move):
 
     position.board[to_square] = occupied
     position.board[from_square] = selected
+
+    if position.side == 0:
+        position.white_pieces[position.white_pieces.index(to_square)] = from_square
+        position.black_pieces.append(to_square)
+    else:
+        position.black_pieces[position.black_pieces.index(to_square)] = from_square
+        position.white_pieces.append(to_square)
 
     if selected == WHITE_KING or selected == BLACK_KING:
         position.king_positions[position.side] = from_square
@@ -390,6 +459,8 @@ def undo_null_move(position, current_ep, current_hash_key):
 # @nb.njit(nb.void(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
 @nb.njit
 def parse_fen(position, fen_string):
+    reset_position(position)
+
     fen_list = fen_string.strip().split()
     fen_board = fen_list[0]
     turn = fen_list[1]
@@ -418,6 +489,12 @@ def parse_fen(position, fen_string):
                 if piece == p:
                     idx += j
             position.board[pos] = idx
+
+            if idx < BLACK_PAWN:
+                position.white_pieces.append(pos)
+            else:
+                position.black_pieces.append(pos)
+
             if i == 'K':
                 position.king_positions[0] = pos
             elif i == 'k':
@@ -570,4 +647,18 @@ Perft
 3: (8902, 34, 0, 12, 0) 0.004687374999999605
 3: (197281, 1576, 0, 469, 461) 0.14667049999999993
 3: (4865609, 82719, 258, 27351, 15375) 2.412793375
+
+Removing flip_position
+NODES 20 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 2401
+NODES 400 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 0
+NODES 8902 CAPTURES 34 EP 0 CHECKS 12 PROMOTIONS 0 CASTLES 0 TIME 2
+NODES 197281 CAPTURES 1576 EP 0 CHECKS 469 PROMOTIONS 0 CASTLES 0 TIME 51
+NODES 4865609 CAPTURES 82719 EP 258 CHECKS 27351 PROMOTIONS 0 CASTLES 0 TIME 1226
+
+Piece lists
+NODES 20 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 2845
+NODES 400 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 0
+NODES 8902 CAPTURES 34 EP 0 CHECKS 12 PROMOTIONS 0 CASTLES 0 TIME 2
+NODES 197281 CAPTURES 1576 EP 0 CHECKS 469 PROMOTIONS 0 CASTLES 0 TIME 53
+NODES 4865609 CAPTURES 82719 EP 258 CHECKS 27351 PROMOTIONS 0 CASTLES 0 TIME 1377
 '''

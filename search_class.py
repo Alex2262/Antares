@@ -11,10 +11,10 @@ search_spec = [
     ("ply", nb.uint16),             # opposite of depth counter
     ("start_time", nb.double),
     ("node_count", nb.uint64),
-    ("pv_table", nb.uint64[:, :]),  # implementation of pv and pv scoring comes from TSCP engine
-    ("pv_length", nb.uint64[:]),
-    ("killer_moves", nb.uint64[:, :]),
-    ("history_moves", nb.uint64[:, :]),
+    ("pv_table", MOVE_TYPE[:, :]),  # implementation of pv and pv scoring comes from TSCP engine
+    ("pv_length", nb.uint16[:]),
+    ("killer_moves", MOVE_TYPE[:, :]),
+    ("history_moves", nb.uint32[:, :]),
     ("transposition_table", NUMBA_HASH_TYPE[:]),
     ("repetition_table", nb.uint64[:]),
     ("repetition_index", nb.uint16),
@@ -39,13 +39,13 @@ class Search:
 
         self.node_count = 0
 
-        self.pv_table = np.zeros((self.max_depth, self.max_depth), dtype=np.uint64)
-        self.pv_length = np.zeros(self.max_depth+1, dtype=np.uint64)
+        self.pv_table = np.zeros((self.max_depth, self.max_depth), dtype=np.uint32)
+        self.pv_length = np.zeros(self.max_depth+1, dtype=np.uint16)
 
         # Killer moves [id][ply]
-        self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint64)
+        self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint32)
         # History moves [piece][square]
-        self.history_moves = np.zeros((12, 64), dtype=np.uint64)
+        self.history_moves = np.zeros((12, 64), dtype=np.uint32)
 
         self.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
 

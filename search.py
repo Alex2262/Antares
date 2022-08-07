@@ -1060,4 +1060,42 @@ info depth 13 score cp 24 time 11534 nodes 6433972 nps 863240 pv e2e4 e7e6 g1f3 
 info depth 13 score cp 24 time 60002 nodes 39771322 nps 828769 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8c6 e1g1 a7a6 b5c6
  b7c6 d2d4 g8f6 b1c3
 bestmove e2e4
+
+
+PST optimizations
+info depth 1 score cp 42 time 20 nodes 21 nps 1039 pv b1c3
+info depth 2 score cp 8 time 20 nodes 124 nps 5999 pv g1f3 b8c6
+info depth 3 score cp 42 time 20 nodes 260 nps 12471 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 22 nodes 1278 nps 56853 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 24 nodes 2761 nps 113248 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 40 nodes 16142 nps 398036 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 50 nodes 25591 nps 501865 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 105 nodes 71794 nps 677424 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 22 time 381 nodes 280956 nps 735938 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 12 time 930 nodes 743629 nps 799256 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6
+info depth 11 score cp 26 time 1372 nodes 1126310 nps 820458 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 d8d6 c2c4 d5f4 b1c3
+info depth 12 score cp 32 time 2525 nodes 2100240 nps 831646 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 c2c4 d5f4 d2d4 d8d6
+info depth 13 score cp 29 time 9886 nodes 8337340 nps 843269 pv e2e4 b8c6 d2d4 e7e6 g1f3 d7d5 e4e5 g8e7 b1c3 c8d7 c1f4
+ e7g6 f4g5
+info depth 13 score cp 29 time 60000 nodes 48060624 nps 801001 pv e2e4 b8c6 d2d4 e7e6 g1f3 d7d5 e4e5 g8e7 b1c3 c8d7 c1f4
+ e7g6 f4g5
+bestmove e2e4
+
+Rook semi open file and open file bonuses
+info depth 1 score cp 42 time 7 nodes 21 nps 2964 pv b1c3
+info depth 2 score cp 8 time 7 nodes 124 nps 16524 pv g1f3 b8c6
+info depth 3 score cp 42 time 7 nodes 260 nps 33774 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 9 nodes 1276 nps 135801 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 11 nodes 2758 nps 242803 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 28 nodes 16142 nps 575126 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 38 nodes 25592 nps 657672 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 94 nodes 71761 nps 755522 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 22 time 345 nodes 280437 nps 811532 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 12 time 846 nodes 693219 nps 818762 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 c2c4 d5f6 b1c3 b8c6
+info depth 11 score cp 34 time 1898 nodes 1561747 nps 822666 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 g1f3 b8c6 e4e5 c8d7 c1f4
+info depth 12 score cp 32 time 3373 nodes 2788781 nps 826760 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 g1f3 b8c6 e4e5 c8d7 c1f4
+ a8c8
+info depth 13 score cp 29 time 8402 nodes 6966813 nps 829100 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 b1c3
+info depth 13 score cp 29 time 60001 nodes 47787229 nps 796440 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 b1c3
+bestmove e2e4
 '''

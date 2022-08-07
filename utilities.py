@@ -145,21 +145,27 @@ ENDGAME_ISOLATED_PAWN_PENALTY = 12  # The person playing with the isolated pawns
 BACKWARDS_PAWN_PENALTY = 6
 ENDGAME_BACKWARDS_PAWN_PENALTY = 8  # Give this a higher base score, but we reduce multipliers in eval_pawn()
 
-PASSED_PAWN_BONUS = 15
-ENDGAME_PASSED_PAWN_BONUS = 25
+PASSED_PAWN_BONUS = 9  # These are multiplied by the pawns row, so the base value shouldn't be too high.
+ENDGAME_PASSED_PAWN_BONUS = 17
 
 BISHOP_PAIR_BONUS = 55
-ENDGAME_BISHOP_PAIR_BONUS = 35
+ENDGAME_BISHOP_PAIR_BONUS = 40
+
+ROOK_SEMI_OPEN_FILE_BONUS = 15
+ENDGAME_ROOK_SEMI_OPEN_FILE_BONUS = 20
+
+ROOK_OPEN_FILE_BONUS = 27
+ENDGAME_ROOK_OPEN_FILE_BONUS = 32
 
 PST = np.array((
         # Pawns in the center are good.
         # Pawns near the king (generally the king side) are good.
         # Pawns on the 7th rank do not get high PST values since they get past pawn bonuses
         (    0,   0,   0,   0,   0,   0,   0,   0,
-             0,  10,  15,  15,  15,  10,   0, -10,
-            10,  15,  20,  25,  35,  20,  15,   0,
-             3,   4,  15,  20,  25,  15,   4,  -2,
-             0,   0,  10,  15,  17,   5,   0,  -4,
+            45,  50,  55,  60,  65,  55,  30,  10,  # passed: | 108, 113, 118, 123, 128, 118,  93,  73|
+            35,  40,  45,  50,  60,  45,  40,  25,  # passed: |  89,  94,  99, 104, 114,  99,  94,  79|
+             8,   9,  20,  25,  30,  20,   7,   3,
+             0,   0,  13,  18,  20,   8,   3,  -4,
              2,   2,   0,   2,   4,  -5,  12,   0,
              0,   0,   3, -26, -26,  12,  15,  -5,
              0,   0,   0,   0,   0,   0,   0,   0),
@@ -182,14 +188,14 @@ PST = np.array((
            -10,  10,   0,   0,   0,   0,  10, -10,
            -20, -10, -10, -10, -10, -10, -10, -20),
 
-        (   30,  40,  30,  45,  50,  10,  30,  35,
-            25,  30,  40,  50,  60,  50,  30,  30,
+        (   30,  30,  30,  35,  35,  30,  30,  35,
+            25,  30,  40,  40,  45,  40,  30,  30,
              5,  10,  10,  30,  20,  30,  10,   5,
            -20,  -5,  10,  15,  15,  20,  -5, -20,
            -30,  -5,  -1,   0,   5,  -1,  -5, -20,
            -35,   0,   0,   0,   0,   0,   0, -30,
-           -30, -10,   5,   6,   6,   5,  -5, -40,
-           -10,  -8,  10,  18,  18,  10, -20, -20),
+           -30, -10,   4,   6,   6,   4,  -5, -40,
+           -10,  -8,   8,  10,  10,   8, -15, -15),
 
         (  -20, -10, -10,  -5,  -5, -10, -10, -20,
            -10,  -5,   5,  -5,  -1,   5,   5, -10,
@@ -216,9 +222,9 @@ ENDGAME_PST = np.array((
         # Pawns on the flank files are better when they are pushed more
         # since they can become outside passed pawns
         (    0,   0,   0,   0,   0,   0,   0,   0,
-            55,  50,  40,  30,  30,  35,  45,  50,
-            35,  30,  25,  20,  20,  25,  30,  35,
-            20,  20,  10,  16,  16,  10,  15,  20,
+            75,  70,  60,  55,  55,  55,  65,  70,  # passed: | 194, 179, 179, 174, 174, 174, 184, 189|
+            55,  50,  45,  40,  40,  45,  50,  50,  # passed: | 157, 152, 147, 142, 142, 147, 152, 152|
+            30,  30,  20,  26,  26,  20,  25,  30,  # passed: | 115, 115, 105, 111, 111, 105, 110, 115|
             10,   0,   5,   4,   4,   5,   0,   0,
              2,   2,   0,   3,   3,   0,   2,   2,
             10,  10,   5,   5,   5,   3,   1,   0,
@@ -272,4 +278,3 @@ CASTLE_HASH_KEYS = np.random.randint(1, 2 ** 64 - 1, size=16, dtype=np.uint64)
 SIDE_HASH_KEY = np.random.randint(1, 2 ** 64 - 1, dtype=np.uint64)
 
 HASH_FLAG_EXACT, HASH_FLAG_ALPHA, HASH_FLAG_BETA = (0, 1, 2)
-

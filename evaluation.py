@@ -168,6 +168,15 @@ def evaluate(position):
         elif piece == WHITE_BISHOP:
             white_bishops += 1
 
+        elif piece == WHITE_ROOK:
+            if pawn_rank[0][i % 8 + 1] == 9:  # No pawn on this column
+                if pawn_rank[1][i % 8 + 1] == 0:  # No enemy pawn on column
+                    white_mid_scores += ROOK_OPEN_FILE_BONUS
+                    white_end_scores += ENDGAME_ROOK_OPEN_FILE_BONUS
+                else:
+                    white_mid_scores += ROOK_SEMI_OPEN_FILE_BONUS
+                    white_end_scores += ENDGAME_ROOK_SEMI_OPEN_FILE_BONUS
+
     for pos in position.black_pieces:
 
         piece = board[pos]
@@ -187,6 +196,15 @@ def evaluate(position):
 
         elif piece == BLACK_BISHOP:
             black_bishops += 1
+
+        elif piece == BLACK_ROOK:
+            if pawn_rank[1][i % 8 + 1] == 0:  # No pawn on this column
+                if pawn_rank[0][i % 8 + 1] == 9:  # No enemy pawn on column
+                    black_mid_scores += ROOK_OPEN_FILE_BONUS
+                    black_end_scores += ENDGAME_ROOK_OPEN_FILE_BONUS
+                else:
+                    black_mid_scores += ROOK_SEMI_OPEN_FILE_BONUS
+                    black_end_scores += ENDGAME_ROOK_SEMI_OPEN_FILE_BONUS
 
     if white_bishops >= 2:
         white_mid_scores += BISHOP_PAIR_BONUS

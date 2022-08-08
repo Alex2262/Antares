@@ -28,7 +28,7 @@ def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
         if time < inc:
             time_amt = time / (rate / 10)
         else:
-            time_amt = max(0.9 * inc + (time - inc * rate) / (rate*2), time / (rate*2))
+            time_amt = max(0.8 * inc + (time - inc * rate) / (rate*2), time / (rate*4))
     elif movestogo > 0:
         time_amt = (time * 0.8 / movestogo) * (20 / rate)
         if time_amt > time * 0.8:

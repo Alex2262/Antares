@@ -191,10 +191,10 @@ def negamax(engine, position, alpha, beta, depth):
 
         # Adaptive NMP
         # depth 3 == 2
-        # depth 6 == 3
-        # depth 11 == 4
-        # depth 16 == 5
-        reduction = nb.uint8(1.25 * (depth ** 0.5))
+        # depth 8 == 3
+        # depth 13 == 4
+        # depth 18 == 5
+        reduction = (depth + 2)//5 + 1
 
         # Make the null move (flipping the position and clearing the ep square)
         make_null_move(position)
@@ -1097,5 +1097,23 @@ info depth 12 score cp 32 time 3373 nodes 2788781 nps 826760 pv e2e4 e7e6 b1c3 d
  a8c8
 info depth 13 score cp 29 time 8402 nodes 6966813 nps 829100 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 b1c3
 info depth 13 score cp 29 time 60001 nodes 47787229 nps 796440 pv e2e4 e7e6 d2d4 d7d5 e4e5 b8c6 b1c3
+bestmove e2e4
+
+adaptive null move pruning reduction change
+info depth 1 score cp 42 time 7 nodes 21 nps 2779 pv b1c3
+info depth 2 score cp 8 time 7 nodes 124 nps 15504 pv g1f3 b8c6
+info depth 3 score cp 42 time 8 nodes 260 nps 31820 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 9 nodes 1276 nps 130018 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 11 nodes 2758 nps 235325 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 28 nodes 16142 nps 571403 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 38 nodes 25553 nps 656706 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 95 nodes 73369 nps 766568 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 22 time 369 nodes 305569 nps 827401 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 22 time 673 nodes 561788 nps 834568 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4 d5e4
+info depth 11 score cp 33 time 1848 nodes 1544547 nps 835454 pv e2e4 b8c6 g1f3 g8f6 e4e5 f6d5 b1c3 d5c3 d2c3 d7d5 c1f4
+info depth 12 score cp 32 time 3043 nodes 2593277 nps 852020 pv e2e4 b8c6 g1f3 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 c8d7 c1f4
+ a8c8
+info depth 13 score cp 29 time 7550 nodes 6417711 nps 849959 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
+info depth 13 score cp 29 time 60001 nodes 49043619 nps 817376 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
 bestmove e2e4
 '''

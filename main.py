@@ -5,17 +5,36 @@ UCI Handler
 
 import sys
 import threading
+import time
+import numba as nb
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci, get_is_capture
 from position import make_move, parse_fen, is_attacked
-from position_class import Position
+from position_class import init_position
 from search import iterative_search, compile_engine, new_game
-from search_class import Search
+from search_class import init_search, SearchStruct_set_max_time, SearchStruct_set_max_depth
 from utilities import NO_MOVE
 
 
-def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
+@nb.njit(cache=True)
+def parse_moves(engine, position, tokens):
+    last_move = 0
+    engine.repetition_index = 0
+    for move in tokens:
+        formatted_move = get_move_from_uci(position, move)
+        last_move = formatted_move
+        make_move(position, formatted_move)
+
+        engine.repetition_index += 1
+        engine.repetition_table[engine.repetition_index] = position.hash_key
+
+        position.side ^= 1
+
+    return last_move
+
+
+def time_handler(engine, position, last_move, self_time, inc, movetime, movestogo):
     rate = 20
     if is_attacked(position, position.king_positions[position.side]):
         rate -= 3
@@ -26,19 +45,19 @@ def time_handler(engine, position, last_move, time, inc, movetime, movestogo):
         time_amt = movetime * 0.9
     elif inc > 0:
         if time < inc:
-            time_amt = time / (rate / 10)
+            time_amt = self_time / (rate / 10)
         else:
-            time_amt = max(0.8 * inc + (time - inc * rate) / (rate*2), time / (rate*4))
+            time_amt = max(0.8 * inc + (self_time - inc * rate) / (rate*2), self_time / (rate*4))
     elif movestogo > 0:
-        time_amt = (time * 0.8 / movestogo) * (20 / rate)
-        if time_amt > time * 0.8:
-            time_amt = time * 0.85
-    elif time > 0:
-        time_amt = time / rate
+        time_amt = (self_time * 0.8 / movestogo) * (20 / rate)
+        if time_amt > self_time * 0.8:
+            time_amt = self_time * 0.85
+    elif self_time > 0:
+        time_amt = self_time / (rate + 4)
     else:
         time_amt = engine.max_time
 
-    engine.max_time = int(time_amt)
+    SearchStruct_set_max_time(engine, int(time_amt))
 
 
 def parse_go(engine, position, msg, last_move):
@@ -76,14 +95,14 @@ def parse_go(engine, position, msg, last_move):
             movestogo = int(v)
 
     if position.side == 0:
-        time = wtime
+        self_time = wtime
         inc = winc
     else:
-        time = btime
+        self_time = btime
         inc = binc
 
-    time_handler(engine, position, last_move, time, inc, movetime, movestogo)
-    engine.max_depth = d
+    time_handler(engine, position, last_move, self_time, inc, movetime, movestogo)
+    SearchStruct_set_max_depth(engine, int(d))
 
 
 def main():
@@ -94,8 +113,10 @@ def main():
 
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-    main_position = Position()
-    main_engine = Search()
+    main_position = init_position()
+    main_engine = init_search()
+
+    start_time = time.time()
 
     compile_thread = threading.Thread(target=compile_engine, args=(main_engine, main_position))
     compile_thread.start()
@@ -118,6 +139,7 @@ def main():
 
         elif msg == "isready":
             compile_thread.join()
+            print(time.time() - start_time, file=sys.stderr)
             print("readyok")
             continue
 
@@ -145,16 +167,7 @@ def main():
             if len(tokens) <= next_idx or tokens[next_idx] != "moves":
                 continue
 
-            main_engine.repetition_index = 0
-            for move in tokens[(next_idx + 1):]:
-                formatted_move = get_move_from_uci(main_position, move)
-                last_move = formatted_move
-                make_move(main_position, formatted_move)
-
-                main_engine.repetition_index += 1
-                main_engine.repetition_table[main_engine.repetition_index] = main_position.hash_key
-
-                main_position.side ^= 1
+            last_move = parse_moves(main_engine, main_position, tuple(tokens[(next_idx + 1):]))
 
         if msg.startswith("go"):
             parse_go(main_engine, main_position, msg, last_move)

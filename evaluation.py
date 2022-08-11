@@ -4,7 +4,7 @@ from utilities import *         # contains Evaluation arrays
 from search_class import Search
 
 
-@nb.njit
+@nb.njit(cache=True)
 def evaluate_pawn(position, pawn_rank, pos):
     i = MAILBOX_TO_STANDARD[pos]
     f = i % 8 + 1  # pawn's file ( Col + 1 )
@@ -104,7 +104,7 @@ def evaluate_pawn(position, pawn_rank, pos):
 
 
 # @nb.njit(SCORE_TYPE(Position.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def evaluate(position):
     white_mid_scores = 0
     black_mid_scores = 0
@@ -224,8 +224,8 @@ def evaluate(position):
     return SCORE_TYPE((position.side * -2 + 1) * (white_score - black_score) + TEMPO_BONUS)
 
 
-@nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
-# @nb.njit
+# @nb.njit(SCORE_TYPE(Search.class_type.instance_type, MOVE_TYPE, MOVE_TYPE), cache=True)
+@nb.njit(cache=True)
 def score_move(engine, move, tt_move):
 
     if move == tt_move:
@@ -298,8 +298,8 @@ def score_move(engine, move, tt_move):
     return score
 
 
-@nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
-# @nb.njit
+# @nb.njit(SCORE_TYPE(MOVE_TYPE), cache=True)
+@nb.njit(cache=True)
 def score_capture(move):
 
     score = 0

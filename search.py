@@ -14,12 +14,11 @@ from move_generator import *
 from position import *
 from transposition import *
 
-from search_class import Search
-from position_class import Position
+from search_class import SearchStruct_set_max_depth, SearchStruct_set_max_time
 
 
 # @nb.njit(nb.float64(), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def get_time():
     with nb.objmode(time_amt=nb.float64):
         time_amt = time.time()
@@ -28,7 +27,7 @@ def get_time():
 
 
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def reset(engine):
     engine.node_count = 0
 
@@ -46,7 +45,7 @@ def reset(engine):
 
 
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def new_game(engine):
     reset(engine)
     engine.repetition_table = np.zeros(REPETITION_TABLE_SIZE, dtype=np.uint64)
@@ -54,7 +53,7 @@ def new_game(engine):
 
 
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def update_search(engine):
     elapsed_time = 1000 * (get_time() - engine.start_time)
     if elapsed_time >= engine.max_time and engine.current_search_depth >= engine.min_depth:
@@ -62,7 +61,7 @@ def update_search(engine):
 
 
 # @nb.njit(nb.boolean(Search.class_type.instance_type, Position.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def detect_repetition(engine, position):
     for i in range(engine.repetition_index-1, -1, -1):
         if engine.repetition_table[i] == position.hash_key:
@@ -73,7 +72,7 @@ def detect_repetition(engine, position):
 
 # @nb.njit(SCORE_TYPE(Search.class_type.instance_type,
 # |                    Position.class_type.instance_type, SCORE_TYPE, SCORE_TYPE, nb.int8))
-@nb.njit
+@nb.njit(cache=False)
 def qsearch(engine, position, alpha, beta, depth):
 
     # Update the search progress every 1024 nodes
@@ -131,7 +130,7 @@ def qsearch(engine, position, alpha, beta, depth):
 
 # @nb.njit(SCORE_TYPE(Search.class_type.instance_type,
 # |                   Position.class_type.instance_type, SCORE_TYPE, SCORE_TYPE, nb.int8))
-@nb.njit
+@nb.njit(cache=False)
 def negamax(engine, position, alpha, beta, depth):
 
     # Initialize PV length
@@ -334,7 +333,7 @@ def negamax(engine, position, alpha, beta, depth):
 
 # An iterative search approach to negamax
 # @nb.njit(nb.void(Search.class_type.instance_type, Position.class_type.instance_type, nb.boolean), cache=True)
-@nb.njit
+@nb.njit(cache=False)
 def iterative_search(engine, position, compiling):
 
     engine.start_time = get_time()
@@ -404,13 +403,27 @@ def iterative_search(engine, position, compiling):
     return
 
 
+@nb.njit(cache=True)
+def position_class_wrapper():
+    new_position = Position()
+    return new_position
+
+
+@nb.njit(cache=True)
+def search_class_wrapper():
+    new_search = Search()
+    return new_search
+
+
 def compile_engine(engine, position):
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     parse_fen(position, start_fen)
 
-    engine.max_depth = 2
+    SearchStruct_set_max_depth(engine, 2)
+    SearchStruct_set_max_time(engine, 20)
     iterative_search(engine, position, True)
-    engine.max_depth = 30
+    SearchStruct_set_max_time(engine, 10)
+    SearchStruct_set_max_depth(engine, 30)
 
     return
 
@@ -1100,20 +1113,20 @@ info depth 13 score cp 29 time 60001 nodes 47787229 nps 796440 pv e2e4 e7e6 d2d4
 bestmove e2e4
 
 adaptive null move pruning reduction change
-info depth 1 score cp 42 time 7 nodes 21 nps 2779 pv b1c3
-info depth 2 score cp 8 time 7 nodes 124 nps 15504 pv g1f3 b8c6
-info depth 3 score cp 42 time 8 nodes 260 nps 31820 pv g1f3 b8c6 b1c3
-info depth 4 score cp 6 time 9 nodes 1276 nps 130018 pv g1f3 b8c6 b1c3 e7e5
-info depth 5 score cp 36 time 11 nodes 2758 nps 235325 pv g1f3 b8c6 b1c3 e7e5 e2e4
-info depth 6 score cp 2 time 28 nodes 16142 nps 571403 pv g1f3 g8f6 b1c3 b8c6
-info depth 7 score cp 16 time 38 nodes 25553 nps 656706 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
-info depth 8 score cp 14 time 95 nodes 73369 nps 766568 pv b1c3 b8c6 g1f3 g8f6
-info depth 9 score cp 22 time 369 nodes 305569 nps 827401 pv e2e4 b8c6 b1c3 g8f6
-info depth 10 score cp 22 time 673 nodes 561788 nps 834568 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4 d5e4
-info depth 11 score cp 33 time 1848 nodes 1544547 nps 835454 pv e2e4 b8c6 g1f3 g8f6 e4e5 f6d5 b1c3 d5c3 d2c3 d7d5 c1f4
-info depth 12 score cp 32 time 3043 nodes 2593277 nps 852020 pv e2e4 b8c6 g1f3 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 c8d7 c1f4
+info depth 1 score cp 42 time 9 nodes 21 nps 2192 pv b1c3
+info depth 2 score cp 8 time 9 nodes 124 nps 12400 pv g1f3 b8c6
+info depth 3 score cp 42 time 10 nodes 260 nps 25548 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 11 nodes 1276 nps 107470 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 13 nodes 2758 nps 200744 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 29 nodes 16142 nps 547394 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 39 nodes 25553 nps 644449 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 94 nodes 73369 nps 777823 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 22 time 361 nodes 305569 nps 846413 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 22 time 657 nodes 561788 nps 854230 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4 d5e4
+info depth 11 score cp 33 time 1809 nodes 1544547 nps 853733 pv e2e4 b8c6 g1f3 g8f6 e4e5 f6d5 b1c3 d5c3 d2c3 d7d5 c1f4
+info depth 12 score cp 32 time 2987 nodes 2593277 nps 868007 pv e2e4 b8c6 g1f3 e7e6 b1c3 d7d5 d2d4 g8e7 e4e5 c8d7 c1f4
  a8c8
-info depth 13 score cp 29 time 7550 nodes 6417711 nps 849959 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
-info depth 13 score cp 29 time 60001 nodes 49043619 nps 817376 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
+info depth 13 score cp 29 time 7342 nodes 6417711 nps 874044 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
+info depth 13 score cp 29 time 60000 nodes 49319159 nps 821973 pv e2e4 b8c6 g1f3 e7e6 d2d4 d7d5 e4e5 g8e7 b1c3
 bestmove e2e4
 '''

@@ -3,8 +3,7 @@
 from utilities import *
 
 
-# @nb.njit(cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def probe_tt_entry(engine, position, alpha, beta, depth):
     entry = engine.transposition_table[position.hash_key % MAX_HASH_SIZE]
 
@@ -25,8 +24,7 @@ def probe_tt_entry(engine, position, alpha, beta, depth):
     return NO_HASH_ENTRY
 
 
-# @nb.njit(cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def record_tt_entry(engine, position, score, flag, move, depth):
     index = position.hash_key % MAX_HASH_SIZE
 

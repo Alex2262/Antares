@@ -18,7 +18,7 @@ Functions in this file:
 """
 
 from move import *
-from position_class import Position
+# from position_class import Position
 # from numba.typed import List
 
 
@@ -32,9 +32,9 @@ PIECE_MATCHER = np.array((
 ))
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def reset_position(position):
-    position.board = np.zeros(120, dtype=np.int8)
+    position.board = np.zeros(120, dtype=np.uint8)
     position.white_pieces = [nb.int64(1) for _ in range(0)]
     position.black_pieces = [nb.int64(1) for _ in range(0)]
     position.king_positions = np.zeros(2, dtype=np.uint8)
@@ -44,7 +44,8 @@ def reset_position(position):
     position.hash_key = 0
 
 
-@nb.njit(nb.uint64(Position.class_type.instance_type), cache=True)
+# 15655472950559759306
+@nb.njit(cache=True)
 def compute_hash(position):
     code = 0
 
@@ -67,7 +68,7 @@ def compute_hash(position):
 
 
 # @nb.njit(nb.boolean(Position.class_type.instance_type, nb.int8), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def is_attacked(position, pos):
     board = position.board
     if position.side == 0:
@@ -88,8 +89,10 @@ def is_attacked(position, pos):
 
                         if piece == WHITE_KNIGHT:  # if we are checking with knight and opponent piece is not knight
                             break
+
                         if occupied == BLACK_KNIGHT:  # if we are checking with a queen and opponent piece is a knight
                             break
+
                         if occupied == BLACK_KING:  # king
                             if new_pos == pos + increment:
                                 return True
@@ -112,6 +115,7 @@ def is_attacked(position, pos):
 
                     if piece == WHITE_KNIGHT:  # if checking with knight
                         break
+
     else:
         for piece in (BLACK_QUEEN, BLACK_KNIGHT):
             for increment in WHITE_ATK_INCREMENTS[piece-BLACK_PAWN]:
@@ -159,7 +163,7 @@ def is_attacked(position, pos):
 
 
 # @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def make_move(position, move):
 
     # Get move info
@@ -309,7 +313,7 @@ def make_move(position, move):
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE, nb.int8, nb.uint8, nb.uint64), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key):
 
     # Restore hash
@@ -386,7 +390,7 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
 
 
 # @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def make_capture(position, move):
 
     from_square = get_from_square(move)
@@ -413,7 +417,7 @@ def make_capture(position, move):
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def undo_capture(position, move):
 
     from_square = get_from_square(move)
@@ -436,7 +440,7 @@ def undo_capture(position, move):
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def make_null_move(position):
 
     position.side ^= 1
@@ -448,7 +452,7 @@ def make_null_move(position):
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type, nb.int8, nb.uint64), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def undo_null_move(position, current_ep, current_hash_key):
 
     position.side ^= 1
@@ -457,7 +461,7 @@ def undo_null_move(position, current_ep, current_hash_key):
 
 
 # @nb.njit(nb.void(Position.class_type.instance_type, nb.types.unicode_type), cache=True)
-@nb.njit
+@nb.njit(cache=True)
 def parse_fen(position, fen_string):
     reset_position(position)
 
@@ -533,7 +537,8 @@ def parse_fen(position, fen_string):
     position.hash_key = compute_hash(position)
 
 
-@nb.njit(nb.types.unicode_type(Position.class_type.instance_type), cache=True)
+# @nb.njit(nb.types.unicode_type(Position.class_type.instance_type), cache=True)
+@nb.njit(cache=True)
 def make_readable_board(position):
     new_board = " "
     for j, i in enumerate(position.board[21:100]):
@@ -577,88 +582,3 @@ def make_readable_board(position):
     return new_board
 
 
-'''
-incheck njit
-(1, 0, 0, 0, 0) 3.624999999729539e-06
-(20, 0, 0, 0, 0) 0.5131300830000001
-(400, 0, 0, 0, 0) 0.010259709000001394
-(8902, 34, 0, 12, 0) 0.25145966700000066
-
-3: (1, 0, 0, 0, 0) 3.9590000000533365e-06
-3: (20, 0, 0, 0, 0) 0.9135626250000001
-3: (400, 0, 0, 0, 0) 0.02379966599999994
-3: (8902, 34, 0, 12, 0) 0.5183446670000003
-
-Makemove njit
-(1, 0, 0, 0, 0) 1.3330000001587905e-06
-(20, 0, 0, 0, 0) 0.8349006249999995
-(400, 0, 0, 0, 0) 0.011415915999999804
-(8902, 34, 0, 12, 0) 0.26993779199999945
-
-3: (1, 0, 0, 0, 0) 3.250000000010189e-06
-3: (20, 0, 0, 0, 0) 1.092408416
-3: (400, 0, 0, 0, 0) 0.4462142920000003
-3: (8902, 34, 0, 12, 0) 0.2711170829999996
-
-Undomove njit
-(1, 0, 0, 0, 0) 1.708000000100185e-06
-(20, 0, 0, 0, 0) 1.0710964580000004
-(400, 0, 0, 0, 0) 0.01103325000000055
-(8902, 34, 0, 12, 0) 0.23741866700000003
-
-3: (1, 0, 0, 0, 0) 2.8749999999577724e-06
-3: (20, 0, 0, 0, 0) 1.192687125
-3: (400, 0, 0, 0, 0) 0.47335604200000003
-3: (8902, 34, 0, 12, 0) 0.27404020900000026
-
-Pseudo Legal Move
-(1, 0, 0, 0, 0) 9.58000000217396e-07
-(20, 0, 0, 0, 0) 1.3550063749999994
-(400, 0, 0, 0, 0) 0.002123750000000868
-(8902, 34, 0, 12, 0) 0.04826562500000087
-
-3: (1, 0, 0, 0, 0) 3.749999999969056e-06
-3: (20, 0, 0, 0, 0) 1.6368319580000001
-3: (400, 0, 0, 0, 0) 0.782766375
-3: (8902, 34, 0, 12, 0) 0.23104925000000032
-
-Perft
-(1, 0, 0, 0, 0) 1.6898107920000003
-(20, 0, 0, 0, 0) 0.0004498330000011208
-(400, 0, 0, 0, 0) 0.0002648749999991651
-(8902, 34, 0, 12, 0) 0.005955042000000077
-
-3: (1, 0, 0, 0, 0) 2.778665666
-3: (20, 0, 0, 0, 0) 0.00040354200000036755
-3: (400, 0, 0, 0, 0) 0.00028866599999988196
-3: (8902, 34, 0, 12, 0) 0.0043427080000002505
-
---
-(1, 0, 0, 0, 0) 1.615739875000001
-(20, 0, 0, 0, 0) 0.0004347500000001503
-(400, 0, 0, 0, 0) 0.0002569169999997456
-(8902, 34, 0, 12, 0) 0.005752792000000895
-(197281, 1576, 0, 469, 461) 0.12309824999999996
-(4865609, 82719, 258, 27351, 15375) 3.134478208000001
-
-3: (1, 0, 0, 0, 0) 2.963718333
-3: (20, 0, 0, 0, 0) 0.0004398749999996454
-3: (400, 0, 0, 0, 0) 0.00031437499999986684
-3: (8902, 34, 0, 12, 0) 0.004687374999999605
-3: (197281, 1576, 0, 469, 461) 0.14667049999999993
-3: (4865609, 82719, 258, 27351, 15375) 2.412793375
-
-Removing flip_position
-NODES 20 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 2401
-NODES 400 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 0
-NODES 8902 CAPTURES 34 EP 0 CHECKS 12 PROMOTIONS 0 CASTLES 0 TIME 2
-NODES 197281 CAPTURES 1576 EP 0 CHECKS 469 PROMOTIONS 0 CASTLES 0 TIME 51
-NODES 4865609 CAPTURES 82719 EP 258 CHECKS 27351 PROMOTIONS 0 CASTLES 0 TIME 1226
-
-Piece lists
-NODES 20 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 2845
-NODES 400 CAPTURES 0 EP 0 CHECKS 0 PROMOTIONS 0 CASTLES 0 TIME 0
-NODES 8902 CAPTURES 34 EP 0 CHECKS 12 PROMOTIONS 0 CASTLES 0 TIME 2
-NODES 197281 CAPTURES 1576 EP 0 CHECKS 469 PROMOTIONS 0 CASTLES 0 TIME 53
-NODES 4865609 CAPTURES 82719 EP 258 CHECKS 27351 PROMOTIONS 0 CASTLES 0 TIME 1377
-'''

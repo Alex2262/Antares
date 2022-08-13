@@ -15,8 +15,6 @@ search_spec = [
     ("ply", nb.uint16),             # opposite of depth counter
     ("start_time", nb.double),
     ("node_count", nb.uint64),
-    ("pv_table", MOVE_TYPE[:, :]),  # implementation of pv and pv scoring comes from TSCP engine
-    ("pv_length", nb.uint16[:]),
     ("killer_moves", MOVE_TYPE[:, :]),
     ("history_moves", nb.uint32[:, :]),
     ("transposition_table", NUMBA_HASH_TYPE[:]),
@@ -43,9 +41,6 @@ class Search:
 
         self.node_count = 0
 
-        self.pv_table = np.zeros((self.max_depth, self.max_depth), dtype=np.uint32)
-        self.pv_length = np.zeros(self.max_depth+1, dtype=np.uint16)
-
         # Killer moves [id][ply]
         self.killer_moves = np.zeros((2, self.max_depth), dtype=np.uint32)
         # History moves [piece][square]
@@ -70,15 +65,13 @@ class SearchStructType(types.StructRef):
 class SearchStruct(structref.StructRefProxy):
     def __new__(cls, max_depth, max_qdepth, min_depth,
                 current_search_depth, ply, max_time, start_time, node_count,
-                pv_table, pv_length, killer_moves, history_moves,
-                transposition_table, repetition_table, repetition_index,
-                stopped):
+                killer_moves, history_moves, transposition_table, repetition_table,
+                repetition_index, stopped):
 
         return structref.StructRefProxy.__new__(cls, max_depth, max_qdepth, min_depth,
                 current_search_depth, ply, max_time, start_time, node_count,
-                pv_table, pv_length, killer_moves, history_moves,
-                transposition_table, repetition_table, repetition_index,
-                stopped)
+                killer_moves, history_moves, transposition_table, repetition_table,
+                repetition_index, stopped)
 
     @property
     def max_depth(self):
@@ -111,14 +104,6 @@ class SearchStruct(structref.StructRefProxy):
     @property
     def node_count(self):
         return SearchStruct_get_node_count(self)
-
-    @property
-    def pv_table(self):
-        return SearchStruct_get_pv_table(self)
-
-    @property
-    def pv_length(self):
-        return SearchStruct_get_pv_length(self)
 
     @property
     def killer_moves(self):
@@ -186,16 +171,6 @@ def SearchStruct_get_node_count(self):
 
 
 @njit
-def SearchStruct_get_pv_table(self):
-    return self.pv_table
-
-
-@njit
-def SearchStruct_get_pv_length(self):
-    return self.pv_length
-
-
-@njit
 def SearchStruct_get_killer_moves(self):
     return self.killer_moves
 
@@ -235,11 +210,15 @@ def SearchStruct_set_max_depth(engine, d):
     engine.max_depth = d
 
 
+@njit
+def SearchStruct_set_repetition_index(engine, r):
+    engine.repetition_index = r
+
+
 structref.define_proxy(SearchStruct, SearchStructType, ["max_depth", "max_qdepth", "min_depth",
                 "current_search_depth", "ply", "max_time", "start_time", "node_count",
-                "pv_table", "pv_length", "killer_moves", "history_moves",
-                "transposition_table", "repetition_table", "repetition_index",
-                "stopped"])
+                "killer_moves", "history_moves", "transposition_table", "repetition_table",
+                "repetition_index", "stopped"])
 
 
 @njit(cache=True)
@@ -252,8 +231,6 @@ def init_search():
                           max_time=nb.uint64(10000),
                           start_time=nb.double(0),
                           node_count=nb.uint64(0),
-                          pv_table=np.zeros((64, 64), dtype=np.uint32),
-                          pv_length=np.zeros(65, dtype=np.uint16),
                           killer_moves=np.zeros((2, 64), dtype=np.uint32),
                           history_moves=np.zeros((12, 64), dtype=np.uint32),
                           transposition_table=np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE),

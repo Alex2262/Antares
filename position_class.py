@@ -124,6 +124,11 @@ def PositionStruct_get_hash_key(self):
     return self.hash_key
 
 
+@njit
+def PositionStruct_set_side(position, s):
+    position.side = s
+
+
 structref.define_proxy(PositionStruct, PositionStructType, ["board", "white_pieces", "black_pieces",
                                                             "king_positions", "castle_ability_bits",
                                                             "ep_square", "side", "hash_key"])

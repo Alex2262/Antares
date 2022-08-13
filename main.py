@@ -2,36 +2,19 @@
 """
 UCI Handler
 """
-
+import math
 import sys
 import threading
 import time
-import numba as nb
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci, get_is_capture
 from position import make_move, parse_fen, is_attacked
-from position_class import init_position
+from position_class import init_position, PositionStruct_set_side
 from search import iterative_search, compile_engine, new_game
-from search_class import init_search, SearchStruct_set_max_time, SearchStruct_set_max_depth
+from search_class import init_search, SearchStruct_set_max_time, SearchStruct_set_max_depth,\
+    SearchStruct_set_repetition_index
 from utilities import NO_MOVE
-
-
-@nb.njit(cache=True)
-def parse_moves(engine, position, tokens):
-    last_move = 0
-    engine.repetition_index = 0
-    for move in tokens:
-        formatted_move = get_move_from_uci(position, move)
-        last_move = formatted_move
-        make_move(position, formatted_move)
-
-        engine.repetition_index += 1
-        engine.repetition_table[engine.repetition_index] = position.hash_key
-
-        position.side ^= 1
-
-    return last_move
 
 
 def time_handler(engine, position, last_move, self_time, inc, movetime, movestogo):
@@ -44,16 +27,20 @@ def time_handler(engine, position, last_move, self_time, inc, movetime, movestog
     if movetime > 0:
         time_amt = movetime * 0.9
     elif inc > 0:
-        if time < inc:
-            time_amt = self_time / (rate / 10)
+        if self_time < inc:  # we always want to have more time than our increment
+            time_amt = self_time / (rate / 10)  # This ensures we use a lot of our remaining time, but
+                                                # since our increment is larger, it doesn't matter.
         else:
-            time_amt = max(0.8 * inc + (self_time - inc * rate) / (rate*2), self_time / (rate*4))
+            # If our remaining time is less than the boundary, we should use less time than our increment
+            # to get back above the boundary.
+            bound = inc * math.sqrt(90000/inc)
+            time_amt = max(inc * 0.975 + (self_time - bound) / (rate * 2), self_time / (rate*10))
     elif movestogo > 0:
         time_amt = (self_time * 0.8 / movestogo) * (20 / rate)
         if time_amt > self_time * 0.8:
             time_amt = self_time * 0.85
     elif self_time > 0:
-        time_amt = self_time / (rate + 4)
+        time_amt = self_time / (rate + 5)
     else:
         time_amt = engine.max_time
 
@@ -113,6 +100,8 @@ def main():
 
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
+    # f = open('/Users/alexandertian/Documents/PycharmProjects/AntaresChess/AntaresV3/debug_file.txt', 'w')
+
     main_position = init_position()
     main_engine = init_search()
 
@@ -125,6 +114,8 @@ def main():
     while True:
         msg = input().strip()
         print(f">>> {msg}", file=sys.stderr)
+        # f.write(f">>> {msg}")
+        # f.write("\n")
 
         tokens = msg.split()
 
@@ -167,13 +158,23 @@ def main():
             if len(tokens) <= next_idx or tokens[next_idx] != "moves":
                 continue
 
-            last_move = parse_moves(main_engine, main_position, tuple(tokens[(next_idx + 1):]))
+            SearchStruct_set_repetition_index(main_engine, 0)
+            for move in tokens[(next_idx + 1):]:
+                formatted_move = get_move_from_uci(main_position, move)
+                last_move = formatted_move
+                make_move(main_position, formatted_move)
+
+                SearchStruct_set_repetition_index(main_engine, main_engine.repetition_index + 1)
+                main_engine.repetition_table[main_engine.repetition_index] = main_position.hash_key
+
+                PositionStruct_set_side(main_position, main_position.side ^ 1)
 
         if msg.startswith("go"):
             parse_go(main_engine, main_position, msg, last_move)
             iterative_search(main_engine, main_position, False)
             continue
 
+    # f.close()
     sys.exit()
 
 

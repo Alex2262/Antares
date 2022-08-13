@@ -103,6 +103,93 @@ def evaluate_pawn(position, pawn_rank, pos):
     return mid_score, end_score
 
 
+@nb.njit(cache=True)
+def evaluate_king_pawn(pawn_rank, file, color):
+
+    score = 0
+
+    if color == 0:
+        if pawn_rank[0][file] == 3:  # Pawn moved one square
+            score -= 6
+        elif pawn_rank[0][file] == 4:  # Pawn moved two squares
+            score -= 20
+        elif pawn_rank[0][file] != 2:  # Pawn moved more than two squares, or no pawn on this file
+            score -= 27
+
+        if pawn_rank[1][file] == 0:  # no enemy pawn on this file
+            score -= 18
+        elif pawn_rank[1][file] == 4:  # Enemy pawn is on the 4th rank
+            score -= 8
+        elif pawn_rank[1][file] == 3:  # Enemy pawn is on the 3rd rank
+            score -= 15
+
+    else:
+        if pawn_rank[1][file] == 6:
+            score -= 6
+        elif pawn_rank[1][file] == 5:
+            score -= 20
+        elif pawn_rank[1][file] != 7:
+            score -= 27
+
+        if pawn_rank[0][file] == 9:
+            score -= 18
+        elif pawn_rank[0][file] == 5:
+            score -= 8
+        elif pawn_rank[0][file] == 6:
+            score -= 15
+
+    return score
+
+
+@nb.njit(cache=True)
+def evaluate_king(position, pawn_rank, pos):
+    i = MAILBOX_TO_STANDARD[pos]
+    col = i % 8
+
+    # Only a middle game score is needed, since king safety isn't of concern in the endgame.
+    score = 0
+
+    king_color = 0 if position.board[pos] == WHITE_KING else 1
+
+    if king_color == 0:
+        if col < 3:  # Queen side
+            score += evaluate_king_pawn(pawn_rank, 1, 0) * 0.8  # A file pawn
+            score += evaluate_king_pawn(pawn_rank, 2, 0)
+            score += evaluate_king_pawn(pawn_rank, 3, 0) * 0.6  # C file pawn
+
+        elif col > 4:
+            score += evaluate_king_pawn(pawn_rank, 8, 0) * 0.5  # H file pawn
+            score += evaluate_king_pawn(pawn_rank, 7, 0)
+            score += evaluate_king_pawn(pawn_rank, 6, 0) * 0.3  # F file pawn
+
+        else:
+            for pawn_file in range(col, col + 3):
+                if pawn_rank[0][pawn_file] == 9:
+                    score -= 7
+                    if pawn_rank[1][pawn_file] == 0:
+                        score -= 15
+
+    else:
+        if col < 3:  # Queen side
+            score += evaluate_king_pawn(pawn_rank, 1, 1) * 0.8  # A file pawn
+            score += evaluate_king_pawn(pawn_rank, 2, 1)
+            score += evaluate_king_pawn(pawn_rank, 3, 1) * 0.6  # C file pawn
+
+        elif col > 4:
+            score += evaluate_king_pawn(pawn_rank, 8, 1) * 0.5  # H file pawn
+            score += evaluate_king_pawn(pawn_rank, 7, 1)
+            score += evaluate_king_pawn(pawn_rank, 6, 1) * 0.3  # F file pawn
+
+        else:
+            for pawn_file in range(col, col + 3):
+                if pawn_rank[1][pawn_file] == 0:
+                    score -= 7
+                    if pawn_rank[0][pawn_file] == 9:
+                        score -= 15
+
+    return score
+
+
 # @nb.njit(SCORE_TYPE(Position.class_type.instance_type), cache=True)
 @nb.njit(cache=True)
 def evaluate(position):
@@ -177,6 +264,9 @@ def evaluate(position):
                     white_mid_scores += ROOK_SEMI_OPEN_FILE_BONUS
                     white_end_scores += ENDGAME_ROOK_SEMI_OPEN_FILE_BONUS
 
+        elif piece == WHITE_KING:
+            white_mid_scores += evaluate_king(position, pawn_rank, pos)
+
     for pos in position.black_pieces:
 
         piece = board[pos]
@@ -205,6 +295,9 @@ def evaluate(position):
                 else:
                     black_mid_scores += ROOK_SEMI_OPEN_FILE_BONUS
                     black_end_scores += ENDGAME_ROOK_SEMI_OPEN_FILE_BONUS
+
+        elif piece == BLACK_KING:
+            black_mid_scores += evaluate_king(position, pawn_rank, pos)
 
     if white_bishops >= 2:
         white_mid_scores += BISHOP_PAIR_BONUS

@@ -48,7 +48,7 @@ def new_game(engine):
     engine.repetition_index = 0
 
 
-@nb.njit(cache=True)
+@nb.njit
 def get_pv_line(engine, position, depth):
 
     pv_line = []

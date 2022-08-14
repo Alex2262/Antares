@@ -425,14 +425,12 @@ def iterative_search(engine, position, compiling):
 
             if full_searches >= 1:
                 average_branching_factor *= full_searches
-                average_branching_factor += engine.node_count / prev_node_count * 4
-                average_branching_factor /= full_searches + 4
+                average_branching_factor += engine.node_count / prev_node_count * 3
+                average_branching_factor /= full_searches + 3
 
-                uncertainty = ((running_depth / (running_depth + 3)) + (full_searches / (full_searches + 4))) / 2
-                # print(average_branching_factor * uncertainty * lapsed_time * 1000)
+                uncertainty = ((running_depth / (running_depth + 3)) + (full_searches / (full_searches + 2))) / 2
 
-                if average_branching_factor * uncertainty * lapsed_time * 1000 > engine.max_time \
-                        and full_searches > 2:
+                if average_branching_factor * uncertainty * lapsed_time * 1000 > engine.max_time:
                     break
 
             full_searches += 1

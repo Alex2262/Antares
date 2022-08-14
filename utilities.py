@@ -20,6 +20,8 @@ ASPIRATION_VAL      = 50
 # Search Constants
 FULL_DEPTH_MOVES    = 3
 REDUCTION_LIMIT     = 3
+FUTILITY_MIN_DEPTH = 2
+FUTILITY_MARGIN_PER_DEPTH = 100
 
 # Piece/Move/Position Constants
 MOVE_TYPE_NORMAL    = 0

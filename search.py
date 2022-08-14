@@ -101,6 +101,8 @@ def qsearch(engine, position, alpha, beta, depth):
 
     move_scores = get_capture_scores(moves)
 
+    best_score = static_eval
+
     # Iterate through the noisy moves (captures) and search recursively with qsearch (quiescence search)
     for current_move_index in range(len(moves)):
         sort_next_move(moves, move_scores, current_move_index)
@@ -119,13 +121,17 @@ def qsearch(engine, position, alpha, beta, depth):
         position.side ^= 1
         undo_capture(position, move)
 
-        # beta cutoff
-        if return_eval >= beta:
-            return return_eval  # fail soft
+        if return_eval > best_score:
+            best_score = return_eval
 
-        alpha = max(alpha, return_eval)
+            if return_eval > alpha:
+                alpha = return_eval
 
-    return alpha
+            # beta cutoff
+            if return_eval >= beta:
+                break
+
+    return best_score
 
 
 # @nb.njit(SCORE_TYPE(Search.class_type.instance_type,
@@ -189,6 +195,12 @@ def negamax(engine, position, alpha, beta, depth):
     current_ep = position.ep_square
     current_hash_key = position.hash_key
     current_castle_ability_bits = position.castle_ability_bits
+
+    '''# Reverse Futility Pruning
+    if depth < 3 and not in_check:
+        evaluation = evaluate(position)
+        if evaluation - 150 * depth >= beta:
+            return evaluation'''
 
     # Null move pruning
     # We give the opponent an extra move and if they are not able to make their position
@@ -410,15 +422,20 @@ def iterative_search(engine, position, compiling):
             break
 
         if engine.node_count != running_depth and running_depth > 1:
-            average_branching_factor *= full_searches
-            average_branching_factor += engine.node_count / prev_node_count
+
+            if full_searches >= 1:
+                average_branching_factor *= full_searches
+                average_branching_factor += engine.node_count / prev_node_count * 4
+                average_branching_factor /= full_searches + 4
+
+                uncertainty = ((running_depth / (running_depth + 3)) + (full_searches / (full_searches + 4))) / 2
+                # print(average_branching_factor * uncertainty * lapsed_time * 1000)
+
+                if average_branching_factor * uncertainty * lapsed_time * 1000 > engine.max_time \
+                        and full_searches > 2:
+                    break
 
             full_searches += 1
-            average_branching_factor /= full_searches
-
-            if average_branching_factor * (running_depth/(running_depth+4)) * lapsed_time * 1000 > engine.max_time\
-                    and full_searches > 1:
-                break
 
         prev_node_count = engine.node_count
         running_depth += 1
@@ -1172,6 +1189,25 @@ info depth 12 score cp 32 time 3644 nodes 2980064 nps 817622 pv e2e4 d7d5 e4d5 g
  d6f6
 info depth 13 score cp 34 time 30808 nodes 24618401 nps 799081 pv e2e4 e7e6 d2d4 d7d5 e4d5 e6d5 g1f3 b8c6
 info depth 13 score cp 34 time 60000 nodes 47359192 nps 789307 pv e2e4 e7e6 d2d4 d7d5 e4d5 e6d5 g1f3 b8c6
+bestmove e2e4
+
+Qsearch bug fix
+info depth 1 score cp 42 time 0 nodes 21 nps 210000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 124 nps 230537 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 260 nps 346306 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 2 nodes 1276 nps 461015 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 4 nodes 2758 nps 554469 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 20 nodes 14481 nps 722285 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 31 nodes 23706 nps 760634 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 88 nodes 70464 nps 792913 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 20 time 359 nodes 299418 nps 832241 pv e2e4 b8c6 g1f3 d7d5 b1c3 d5e4
+info depth 10 score cp 30 time 776 nodes 643230 nps 828746 pv e2e4 b8c6 d2d4 e7e6 b1c3 d7d5 g1f3 g8f6 e4e5
+info depth 11 score cp 20 time 2003 nodes 1663366 nps 830143 pv e2e4 d7d5 e4d5 g8f6 f1b5 c8d7 b5d7 b8d7 b1c3 d7b6 g1f3
+ a8c8 e1g1
+info depth 12 score cp 32 time 3412 nodes 2854058 nps 836374 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6 b1c3
+ e7e6
+info depth 13 score cp 33 time 27309 nodes 21979170 nps 804818 pv e2e4 b8c6 g1f3 e7e5 d2d4 e5d4 f3d4 g8f6 b1c3 f8c5 c1e3
+ c6d4 e3d4
 bestmove e2e4
 
 

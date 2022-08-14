@@ -34,6 +34,9 @@ def reset_search(engine):
     engine.current_search_depth = 0
     engine.ply = 0
 
+    engine.pv_table = np.zeros((engine.max_depth, engine.max_depth), dtype=np.uint32)
+    engine.pv_length = np.zeros(engine.max_depth+1, dtype=np.uint16)
+
     engine.killer_moves = np.zeros((2, engine.max_depth), dtype=np.uint32)
     engine.history_moves = np.zeros((12, 64), dtype=np.uint32)
 
@@ -46,47 +49,7 @@ def new_game(engine):
     reset_search(engine)
     engine.repetition_table = np.zeros(REPETITION_TABLE_SIZE, dtype=np.uint64)
     engine.repetition_index = 0
-
-
-@nb.njit
-def get_pv_line(engine, position, depth):
-
-    pv_line = []
-
-    entry = engine.transposition_table[position.hash_key % MAX_HASH_SIZE]
-
-    if entry.key != position.hash_key:
-        return pv_line
-
-    if entry.move == NO_MOVE:
-        return pv_line
-
-    in_check = is_attacked(position, position.king_positions[position.side])
-    if in_check:
-        depth += 1
-
-    pv_line.append(get_uci_from_move(entry.move))
-
-    # This ensures repetitions and stuff won't cause infinite loops.
-    if depth != entry.depth:
-        return pv_line
-
-    current_ep = position.ep_square
-    current_hash_key = position.hash_key
-    current_castle_ability_bits = position.castle_ability_bits
-
-    make_move(position, entry.move)
-    position.side ^= 1
-
-    next_moves = get_pv_line(engine, position, depth - 1)
-
-    position.side ^= 1
-    undo_move(position, entry.move, current_ep, current_castle_ability_bits, current_hash_key)
-
-    for move in next_moves:
-        pv_line.append(move)
-
-    return pv_line
+    engine.transposition_table = np.zeros(MAX_HASH_SIZE, dtype=NUMBA_HASH_TYPE)
 
 
 # @nb.njit(nb.void(Search.class_type.instance_type), cache=True)
@@ -100,7 +63,7 @@ def update_search(engine):
 # @nb.njit(nb.boolean(Search.class_type.instance_type, Position.class_type.instance_type), cache=True)
 @nb.njit(cache=True)
 def detect_repetition(engine, position):
-    for i in range(engine.repetition_index-1, -1, -1):
+    for i in range(engine.repetition_index-2, -1, -2):
         if engine.repetition_table[i] == position.hash_key:
             return True
 
@@ -170,6 +133,9 @@ def qsearch(engine, position, alpha, beta, depth):
 @nb.njit(cache=False)
 def negamax(engine, position, alpha, beta, depth):
 
+    # Initialize PV length
+    engine.pv_length[engine.ply] = engine.ply
+
     # Detect repetitions after the first ply to allow for retrieving of moves
     # since we don't check for the full three-fold repetition.
     if engine.ply and detect_repetition(engine, position):
@@ -201,6 +167,12 @@ def negamax(engine, position, alpha, beta, depth):
 
     # A score was given to return
     if tt_value < NO_HASH_ENTRY:
+
+        if not engine.ply:
+            move = engine.transposition_table[position.hash_key % MAX_HASH_SIZE].move
+            engine.pv_table[0][0] = move
+            engine.pv_length[0] = 1
+
         return tt_value
 
     # Use a tt entry move to sort moves
@@ -329,6 +301,13 @@ def negamax(engine, position, alpha, beta, depth):
             if not get_is_capture(move):
                 engine.history_moves[get_selected(move)][MAILBOX_TO_STANDARD[get_to_square(move)]] += depth * depth
 
+            # Write pv move
+            engine.pv_table[engine.ply][engine.ply] = move
+            for next_ply in range(engine.ply + 1, engine.pv_length[engine.ply + 1]):
+                engine.pv_table[engine.ply][next_ply] = engine.pv_table[engine.ply + 1][next_ply]
+
+            engine.pv_length[engine.ply] = engine.pv_length[engine.ply + 1]
+
             # Alpha - Beta cutoff. This is a 'cut node' and we have failed high
             if alpha >= beta:
 
@@ -381,6 +360,10 @@ def iterative_search(engine, position, compiling):
     best_pv = ["" for _ in range(0)]
     best_score = 0
 
+    average_branching_factor = 1
+    prev_node_count = 1
+    full_searches = 0  # These are the number of searches that aren't returned from TT immediately.
+
     while running_depth <= engine.max_depth:
 
         # Reset engine variables
@@ -400,27 +383,45 @@ def iterative_search(engine, position, compiling):
         beta = returned + ASPIRATION_VAL
 
         # Obtain principle variation line and print it
-        pv_line = get_pv_line(engine, position, running_depth)
+        pv_line = []
+        for c in range(engine.pv_length[0]):
+            pv_line.append(get_uci_from_move(engine.pv_table[0][c]))
+            position.side ^= 1
 
         position.side = original_side
 
         best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
         best_score = returned if not engine.stopped else best_score
 
-        end_time = get_time()
+        lapsed_time = get_time() - engine.start_time
 
         if engine.stopped:
             running_depth -= 1
 
         if not compiling:
             print("info depth", running_depth, "score cp", best_score,
-                  "time", int((end_time - engine.start_time) * 1000), "nodes", engine.node_count,
-                  "nps", int(engine.node_count / max((end_time - engine.start_time), 0.0001)), "pv", ' '.join(best_pv))
-
-        running_depth += 1
+                  "time", int(lapsed_time * 1000), "nodes", engine.node_count,
+                  "nps", int(engine.node_count / max(lapsed_time, 0.0001)), "pv", ' '.join(best_pv))
 
         if engine.stopped:
             break
+
+        if best_score >= MATE_SCORE:
+            break
+
+        if engine.node_count != running_depth and running_depth > 1:
+            average_branching_factor *= full_searches
+            average_branching_factor += engine.node_count / prev_node_count
+
+            full_searches += 1
+            average_branching_factor /= full_searches
+
+            if average_branching_factor * (running_depth/(running_depth+4)) * lapsed_time * 1000 > engine.max_time\
+                    and full_searches > 1:
+                break
+
+        prev_node_count = engine.node_count
+        running_depth += 1
 
     if not compiling:
         print("bestmove", best_pv[0])
@@ -1156,19 +1157,22 @@ info depth 13 score cp 29 time 60000 nodes 49319159 nps 821973 pv e2e4 b8c6 g1f3
 bestmove e2e4
 
 King eval + bug fix
-info depth 1 score cp 42 time 25 nodes 21 nps 831 pv b1c3
-info depth 2 score cp 8 time 25 nodes 124 nps 4806 pv g1f3 b8c6
-info depth 3 score cp 42 time 25 nodes 260 nps 10002 pv g1f3 b8c6 b1c3
-info depth 4 score cp 6 time 27 nodes 1276 nps 45876 pv g1f3 b8c6 b1c3 e7e5
-info depth 5 score cp 36 time 30 nodes 2758 nps 91875 pv g1f3 b8c6 b1c3 e7e5 e2e4
-info depth 6 score cp 2 time 48 nodes 16144 nps 330759 pv g1f3 g8f6 b1c3 b8c6 e2e4 e7e5
-info depth 7 score cp 16 time 61 nodes 25615 nps 419864 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
-info depth 8 score cp 14 time 138 nodes 81305 nps 585747 pv b1c3 g8f6 e2e4 b8c6 g1f3 d7d5 e4e5 f6g4
-info depth 9 score cp 20 time 470 nodes 343014 nps 728583 pv e2e4 b8c6 g1f3 d7d5 b1c3 d5e4 c3e4 g8f6 f3g5
-info depth 10 score cp 12 time 1120 nodes 851382 nps 760089 pv e2e4 d7d5 e4d5
-info depth 11 score cp 26 time 1772 nodes 1372257 nps 774134 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 d8d6 c2c4 d5f4 b1c3
-info depth 12 score cp 32 time 3776 nodes 2980183 nps 789071 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5
-info depth 13 score cp 34 time 35258 nodes 27360330 nps 775990 pv e2e4 e7e6
-info depth 13 score cp 34 time 60000 nodes 46406859 nps 773438 pv e2e4 e7e6
+info depth 1 score cp 42 time 0 nodes 21 nps 210000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 124 nps 436686 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 260 nps 516833 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 2 nodes 1276 nps 443812 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 5 nodes 2758 nps 534486 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 24 nodes 16144 nps 660903 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 36 nodes 25615 nps 696969 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 107 nodes 81305 nps 759838 pv b1c3 g8f6 e2e4 b8c6 g1f3 d7d5
+info depth 9 score cp 20 time 425 nodes 343014 nps 805540 pv e2e4 b8c6 g1f3 d7d5 b1c3 d5e4
+info depth 10 score cp 12 time 1051 nodes 851211 nps 809691 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6
+info depth 11 score cp 26 time 1688 nodes 1372168 nps 812559 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 d8d6 c2c4 d5f4 b1c3
+info depth 12 score cp 32 time 3644 nodes 2980064 nps 817622 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 d8d6 c2c4 d5f4 f3e5
+ d6f6
+info depth 13 score cp 34 time 30808 nodes 24618401 nps 799081 pv e2e4 e7e6 d2d4 d7d5 e4d5 e6d5 g1f3 b8c6
+info depth 13 score cp 34 time 60000 nodes 47359192 nps 789307 pv e2e4 e7e6 d2d4 d7d5 e4d5 e6d5 g1f3 b8c6
 bestmove e2e4
+
+
 '''

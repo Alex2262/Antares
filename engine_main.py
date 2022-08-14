@@ -6,7 +6,7 @@ The main file which handles uci is main.py
 
 from cache_clearer import kill_numba_cache
 from perft import *
-from search import iterative_search
+from search import iterative_search, new_game
 from search_class import Search, init_search, SearchStruct_set_max_time, SearchStruct_set_max_depth
 from position_class import init_position
 
@@ -18,7 +18,7 @@ def main():
     # test_3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "
     # test_4 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
     # test_5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
-    # new_fen = "8/8/7P/1r3pR1/4k3/3p4/6PK/8 w - - 0 1"
+    # new_fen = "1r1q1rk1/p1p1bppp/1Pn2n2/8/NPB1b3/P2p1N2/1B3PPP/R2Q1RK1 b - - 0 17"
 
     position_fen = start_fen
 
@@ -38,10 +38,9 @@ def main():
     iterative_search(main_engine, main_position, True)
 
     print("\n----- ----- ----- ----- ----- -----\n")
-    parse_fen(main_position, position_fen)
 
     print(time.time() - start)
-
+    new_game(main_engine)
     SearchStruct_set_max_time(main_engine, 60000)
     SearchStruct_set_max_depth(main_engine, 64)
     iterative_search(main_engine, main_position, False)

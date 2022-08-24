@@ -126,7 +126,7 @@ def get_move_from_uci(position, uci):
             move_type = 3
         elif 91 <= to_square <= 98:
             move_type = 3
-        elif to_pos == position.ep_square:
+        elif to_square == position.ep_square:
             move_type = 1
 
     elif selected == WHITE_KING or selected == BLACK_KING:

@@ -204,11 +204,11 @@ def get_move_scores(engine, moves, tt_move):
 
 # @nb.njit(nb.types.List(SCORE_TYPE)(nb.types.List(MOVE_TYPE)), cache=True)
 @nb.njit(cache=True)
-def get_capture_scores(moves):
+def get_capture_scores(moves, tt_move):
     scored_moves = []
 
     for move in moves:
-        scored_moves.append(score_capture(move))
+        scored_moves.append(score_capture(move, tt_move))
 
     return scored_moves
 

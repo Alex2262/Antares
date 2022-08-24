@@ -389,56 +389,6 @@ def undo_move(position, move, current_ep, current_castle_ability_bits, current_h
         position.king_positions[position.side] = from_square
 
 
-# @nb.njit(nb.boolean(Position.class_type.instance_type, MOVE_TYPE), cache=True)
-@nb.njit(cache=True)
-def make_capture(position, move):
-
-    from_square = get_from_square(move)
-    to_square = get_to_square(move)
-    selected = get_selected(move)
-
-    position.board[to_square] = selected
-    position.board[from_square] = EMPTY
-
-    if position.side == 0:
-        position.white_pieces[position.white_pieces.index(from_square)] = to_square
-        position.black_pieces.remove(to_square)
-    else:
-        position.black_pieces[position.black_pieces.index(from_square)] = to_square
-        position.white_pieces.remove(to_square)
-
-    if selected == WHITE_KING or selected == BLACK_KING:
-        position.king_positions[position.side] = to_square
-
-    if is_attacked(position, position.king_positions[position.side]):
-        return False
-
-    return True
-
-
-# @nb.njit(nb.void(Position.class_type.instance_type, MOVE_TYPE), cache=True)
-@nb.njit(cache=True)
-def undo_capture(position, move):
-
-    from_square = get_from_square(move)
-    to_square = get_to_square(move)
-    selected = get_selected(move)
-    occupied = get_occupied(move)
-
-    position.board[to_square] = occupied
-    position.board[from_square] = selected
-
-    if position.side == 0:
-        position.white_pieces[position.white_pieces.index(to_square)] = from_square
-        position.black_pieces.append(to_square)
-    else:
-        position.black_pieces[position.black_pieces.index(to_square)] = from_square
-        position.white_pieces.append(to_square)
-
-    if selected == WHITE_KING or selected == BLACK_KING:
-        position.king_positions[position.side] = from_square
-
-
 # @nb.njit(nb.void(Position.class_type.instance_type), cache=True)
 @nb.njit(cache=True)
 def make_null_move(position):

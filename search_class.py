@@ -239,6 +239,10 @@ def SearchStruct_set_max_depth(engine, d):
 def SearchStruct_set_repetition_index(engine, r):
     engine.repetition_index = r
 
+@njit
+def SearchStruct_set_stopped(engine, s):
+    engine.stopped = s
+
 
 structref.define_proxy(SearchStruct, SearchStructType, ["max_depth", "max_qdepth", "min_depth",
                 "current_search_depth", "ply", "max_time", "start_time", "node_count",
@@ -250,7 +254,7 @@ structref.define_proxy(SearchStruct, SearchStructType, ["max_depth", "max_qdepth
 @njit(cache=True)
 def init_search():
     engine = SearchStruct(max_depth=nb.uint16(64),
-                          max_qdepth=nb.uint16(1000),
+                          max_qdepth=nb.uint16(64),
                           min_depth=nb.uint16(2),
                           current_search_depth=nb.int16(0),
                           ply=nb.int16(0),

@@ -6,7 +6,7 @@ Board representation: 12x10 mailbox
 Move representation: integer (28 bits used)
 
 """
-
+import math
 import time
 
 from evaluation import *
@@ -79,8 +79,22 @@ def qsearch(engine, position, alpha, beta, depth):
     if engine.node_count & 1023 == 0:
         update_search(engine)
 
+    if engine.stopped:
+        return 0
+
     # Increase the node count
     engine.node_count += 1
+
+    tt_value = probe_tt_entry_q(engine, position, alpha, beta)
+    tt_move = NO_MOVE
+
+    # A score was given to return
+    if tt_value < NO_HASH_ENTRY:
+        return tt_value
+
+    # Use a tt entry move to sort moves
+    elif tt_value > USE_HASH_MOVE:
+        tt_move = tt_value - USE_HASH_MOVE
 
     # The stand pat:
     # We assume that in a position there should always be a quiet evaluation,
@@ -89,9 +103,18 @@ def qsearch(engine, position, alpha, beta, depth):
 
     # Beta is the alpha (the best evaluation) of the previous node
     if static_eval >= beta:
-        return beta
+        return static_eval
+
     if depth == 0:
         return static_eval
+
+    # Using a variable to record the hash flag
+    tt_hash_flag = HASH_FLAG_ALPHA
+
+    # Save info for undo move
+    current_ep = position.ep_square
+    current_hash_key = position.hash_key
+    current_castle_ability_bits = position.castle_ability_bits
 
     # If our static evaluation has improved after the last move.
     alpha = max(alpha, static_eval)
@@ -99,19 +122,26 @@ def qsearch(engine, position, alpha, beta, depth):
     # Retrieving all pseudo legal captures as a list of [Move class]
     moves = get_pseudo_legal_captures(position)
 
-    move_scores = get_capture_scores(moves)
+    move_scores = get_capture_scores(moves, tt_move)
 
     best_score = static_eval
+    best_move = NO_MOVE
 
     # Iterate through the noisy moves (captures) and search recursively with qsearch (quiescence search)
     for current_move_index in range(len(moves)):
         sort_next_move(moves, move_scores, current_move_index)
         move = moves[current_move_index]
 
+        # Delta / Futility pruning
+        # If the piece we capture plus a margin cannot even improve our score then
+        # there is no point in searching it
+        if static_eval + PIECE_VALUES_MID[get_occupied(move) % BLACK_PAWN] + 220 < alpha:
+            continue
+
         # Make the capture
-        attempt = make_capture(position, move)
+        attempt = make_move(position, move)
         if not attempt:
-            undo_capture(position, move)
+            undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
             continue
 
         position.side ^= 1
@@ -119,17 +149,25 @@ def qsearch(engine, position, alpha, beta, depth):
         return_eval = -qsearch(engine, position, -beta, -alpha, depth - 1)
 
         position.side ^= 1
-        undo_capture(position, move)
+        undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
+
+        if engine.stopped:
+            return 0
 
         if return_eval > best_score:
             best_score = return_eval
+            best_move = move
 
             if return_eval > alpha:
                 alpha = return_eval
+                tt_hash_flag = HASH_FLAG_EXACT
 
-            # beta cutoff
-            if return_eval >= beta:
-                break
+                # beta cutoff
+                if return_eval >= beta:
+                    record_tt_entry_q(engine, position, best_score, HASH_FLAG_BETA, best_move)
+                    return best_score
+
+    record_tt_entry_q(engine, position, best_score, tt_hash_flag, best_move)
 
     return best_score
 
@@ -137,7 +175,7 @@ def qsearch(engine, position, alpha, beta, depth):
 # @nb.njit(SCORE_TYPE(Search.class_type.instance_type,
 # |                   Position.class_type.instance_type, SCORE_TYPE, SCORE_TYPE, nb.int8))
 @nb.njit(cache=False)
-def negamax(engine, position, alpha, beta, depth):
+def negamax(engine, position, alpha, beta, depth, do_null):
 
     # Initialize PV length
     engine.pv_length[engine.ply] = engine.ply
@@ -159,6 +197,7 @@ def negamax(engine, position, alpha, beta, depth):
     if engine.stopped:
         return 0
 
+    pv_node = alpha != beta - 1
     in_check = is_attacked(position,
                            position.king_positions[position.side])
 
@@ -182,7 +221,7 @@ def negamax(engine, position, alpha, beta, depth):
         return tt_value
 
     # Use a tt entry move to sort moves
-    if tt_value > USE_HASH_MOVE:
+    elif tt_value > USE_HASH_MOVE:
         tt_move = tt_value - USE_HASH_MOVE
 
     # Using a variable to record the hash flag
@@ -197,7 +236,10 @@ def negamax(engine, position, alpha, beta, depth):
     current_castle_ability_bits = position.castle_ability_bits
 
     # Reverse Futility Pruning
-    if depth <= FUTILITY_MIN_DEPTH and not in_check:
+    if depth <= FUTILITY_MIN_DEPTH  \
+            and not in_check        \
+            and not pv_node:
+
         evaluation = evaluate(position)
         if evaluation - FUTILITY_MARGIN_PER_DEPTH * depth >= beta:
             return evaluation
@@ -205,7 +247,10 @@ def negamax(engine, position, alpha, beta, depth):
     # Null move pruning
     # We give the opponent an extra move and if they are not able to make their position
     # any better, then our position is too good, and we don't need to search any deeper.
-    if depth >= 3 and not in_check and engine.ply:
+    if depth >= 3               \
+            and do_null         \
+            and not in_check    \
+            and not pv_node:
 
         # Adaptive NMP
         # depth 3 == 2
@@ -222,7 +267,7 @@ def negamax(engine, position, alpha, beta, depth):
         # engine.repetition_table[engine.repetition_index] = position.hash_key
 
         # We will reduce the depth since the opponent gets two moves in a row to improve their position
-        return_eval = -negamax(engine, position, -beta, -beta + 1, depth - 1 - reduction)
+        return_eval = -negamax(engine, position, -beta, -beta + 1, depth - 1 - reduction, False)
         engine.ply -= 1
         # engine.repetition_index -= 1
 
@@ -237,8 +282,11 @@ def negamax(engine, position, alpha, beta, depth):
     moves = get_pseudo_legal_moves(position)
     move_scores = get_move_scores(engine, moves, tt_move)
 
+    raised_alpha = False
+
     # Best move to save for TT
     best_move = NO_MOVE
+    best_score = -INF
 
     # Iterate through moves and recursively search with Negamax
     for current_move_index in range(len(moves)):
@@ -268,29 +316,43 @@ def negamax(engine, position, alpha, beta, depth):
         engine.repetition_index += 1
         engine.repetition_table[engine.repetition_index] = position.hash_key
 
-        # Normal search for the first move
+        reduction = 0
+        is_killer_move = move == engine.killer_moves[0][engine.ply - 1] or \
+                         move == engine.killer_moves[1][engine.ply - 1]
+
+        # Late Move Reductions (LMR)
+        if legal_moves >= FULL_DEPTH_MOVES                                                  \
+                and ((engine.ply and not pv_node) or legal_moves >= FULL_DEPTH_MOVES + 2)   \
+                and depth >= REDUCTION_LIMIT                                                \
+                and not in_check                                                            \
+                and get_move_type(move) == 0                                                \
+                and not get_is_capture(move):
+
+            reduction = math.sqrt(depth) * 0.5 + math.sqrt(legal_moves) * 0.55 - 0.3
+
+            reduction -= pv_node
+
+            reduction -= is_killer_move
+
+            reduction -= engine.history_moves[get_selected(move)][MAILBOX_TO_STANDARD[get_to_square(move)]] / 20000
+
+            # We don't want to go straight to quiescence search from LMR.
+            reduction = min(depth - 2, max(1, int(reduction)))
+
+        # PVS
         if legal_moves == 0:
-            return_eval = -negamax(engine, position, -beta, -alpha, depth - 1)
-
-        # Different Reduction Methods
+            return_eval = -negamax(engine, position, -beta, -alpha, depth - reduction - 1, True)
         else:
-            # Late Move Reductions (LMR)
-            # Conditions to consider a LMR
-            if legal_moves >= FULL_DEPTH_MOVES and depth >= REDUCTION_LIMIT and\
-               not in_check and get_move_type(move) == 0 and not get_is_capture(move):
-                return_eval = -negamax(engine, position, -alpha - 1, -alpha, depth - 2)
-            else:
-                return_eval = alpha + 1
+            return_eval = -negamax(engine, position, -alpha - 1, -alpha, depth - reduction - 1, True)
 
-            # Principle Variation Search
-            # If the 'pv node' has possibly been 'found', then we search with a narrower window
-            if return_eval > alpha:
-                # Search with a narrower window
-                return_eval = -negamax(engine, position, -alpha - 1, -alpha, depth - 1)
-                # If the narrower window search has failed us we must search with a full window again
-                if alpha < return_eval < beta:
-                    # Research at a full depth
-                    return_eval = -negamax(engine, position, -beta, -alpha, depth - 1)
+        # The move was actually good, so we can try a zero window search at full depth
+        if return_eval > alpha and reduction and legal_moves != 0:
+            return_eval = -negamax(engine, position, -alpha - 1, -alpha, depth - 1, True)
+
+        # Either the full depth zero window search returned above alpha, or
+        # The reduced alpha - beta window search returned above alpha
+        if return_eval > alpha and reduction:
+            return_eval = -negamax(engine, position, -beta, -alpha, depth - 1, True)
 
         # Decrease the ply and repetition index
         engine.ply -= 1
@@ -300,18 +362,13 @@ def negamax(engine, position, alpha, beta, depth):
         position.side ^= 1
         undo_move(position, move, current_ep, current_castle_ability_bits, current_hash_key)
 
+        # Prevent saving of any search termination scores
+        if engine.stopped:
+            return 0
+
         # The move is better than other moves searched
-        if return_eval > alpha:
-
-            alpha = return_eval
-            best_move = move
-
-            # Exact flag reached
-            tt_hash_flag = HASH_FLAG_EXACT
-
-            # Store history moves
-            if not get_is_capture(move):
-                engine.history_moves[get_selected(move)][MAILBOX_TO_STANDARD[get_to_square(move)]] += depth * depth
+        if return_eval > best_score:
+            best_score = return_eval
 
             # Write pv move
             engine.pv_table[engine.ply][engine.ply] = move
@@ -320,18 +377,32 @@ def negamax(engine, position, alpha, beta, depth):
 
             engine.pv_length[engine.ply] = engine.pv_length[engine.ply + 1]
 
-            # Alpha - Beta cutoff. This is a 'cut node' and we have failed high
-            if alpha >= beta:
+            if return_eval > alpha:
 
-                # Store killer moves
+                raised_alpha = True
+
+                alpha = return_eval
+                best_move = move
+
+                # Exact flag reached
+                tt_hash_flag = HASH_FLAG_EXACT
+
+                # Store history moves
                 if not get_is_capture(move):
-                    engine.killer_moves[1][engine.ply] = engine.killer_moves[0][engine.ply]
-                    engine.killer_moves[0][engine.ply] = move
+                    engine.history_moves[get_selected(move)][MAILBOX_TO_STANDARD[get_to_square(move)]] += depth * depth
 
-                if -MATE_SCORE < alpha < MATE_SCORE:
-                    record_tt_entry(engine, position, alpha, HASH_FLAG_BETA, move, depth)
+                # Alpha - Beta cutoff. This is a 'cut node' and we have failed high
+                if return_eval >= beta:
 
-                return alpha
+                    # Store killer moves
+                    if not get_is_capture(move):
+                        engine.killer_moves[1][engine.ply] = engine.killer_moves[0][engine.ply]
+                        engine.killer_moves[0][engine.ply] = move
+
+                    if -MATE_SCORE < best_score < MATE_SCORE:
+                        record_tt_entry(engine, position, best_score, HASH_FLAG_BETA, best_move, depth)
+
+                    return best_score
 
         # Increase legal moves
         legal_moves += 1
@@ -343,11 +414,11 @@ def negamax(engine, position, alpha, beta, depth):
     elif legal_moves == 0 and in_check:
         return -MATE_SCORE - depth
 
-    if -MATE_SCORE < alpha < MATE_SCORE and not engine.stopped:
-        record_tt_entry(engine, position, alpha, tt_hash_flag, best_move, depth)
+    if -MATE_SCORE < best_score < MATE_SCORE:
+        record_tt_entry(engine, position, best_score, tt_hash_flag, best_move, depth)
 
     # We return our best score possible. This is an 'All node' and we have failed low
-    return alpha
+    return best_score
 
 
 # An iterative search approach to negamax
@@ -382,7 +453,7 @@ def iterative_search(engine, position, compiling):
         engine.current_search_depth = running_depth
 
         # Negamax search
-        returned = negamax(engine, position, alpha, beta, running_depth)
+        returned = negamax(engine, position, alpha, beta, running_depth, False)
 
         # Reset the window
         if returned <= alpha or returned >= beta:
@@ -444,18 +515,6 @@ def iterative_search(engine, position, compiling):
     return
 
 
-@nb.njit(cache=True)
-def position_class_wrapper():
-    new_position = Position()
-    return new_position
-
-
-@nb.njit(cache=True)
-def search_class_wrapper():
-    new_search = Search()
-    return new_search
-
-
 def compile_engine(engine, position):
     start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     parse_fen(position, start_fen)
@@ -478,9 +537,8 @@ def compile_engine(engine, position):
 6 4.629144374999999 0.0 296778 341091 1317306 1456882
 7 43.06958825 0.3 2639583 2980674 11574655 13031537
 UNFINISHED 60.017578625 1144000 4124674 5518826 18550363
-'''
 
-''' Move Ordering!!
+Move Ordering!!
 1 0.2423271249999992 97 76 0.58 1 1 1 1
 2 0.24245779199999973 97 76 0.0 21 22 20 21
 3 0.24329862499999955 97 76 0.58 60 82 20 41
@@ -490,9 +548,8 @@ UNFINISHED 60.017578625 1144000 4124674 5518826 18550363
 7 1.2136407499999997 85 65 0.3 58633 74740 109453 141887
 8 8.362156709 97 76 0.0 445415 520155 1999461 2141348
 UNFINISHED 60.012888958999994 1906000 2426155 13584540 15725888
-'''
 
-''' PV sorting!
+PV sorting!
 1 0.1396929999999994 0.44 1 1 1 1
 b1c3
 2 0.1397954170000002 0.0 21 22 20 21
@@ -511,9 +568,8 @@ e2e4 b8c6 g1e2 g8f6 d2d3 e7e5 b1d2
 e2e4 b8c6 g1f3 g8f6 b1c3 e7e5 f1b5 d7d6
 8 60.001914041999996 0.0 2270208 2923064 18240286 21870196
 e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 g8f6 b1c3
-'''
 
-'''Principle Variation Search!!
+Principle Variation Search!!
 1 0.7536724580000005 0.44 1 1 1 1
 b1c3
 2 0.7537917919999995 0.0 21 22 20 21
@@ -533,10 +589,8 @@ e2e4 b8c6 g1f3 g8f6 b1c3 e7e5 f1b5 d7d6
 9 46.730271417 0.38 2193773 2771176 11069776 13680901
 e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 g8f6 b1c3
 9 60.000528792 0.0 559104 3330280 5145567 18826468
-'''
 
-
-''' Killer and History moves!
+Killer and History moves!
 1 0.42398825000000073 0.44 1 1 1 1
 b1c3
 2 0.4240921669999995 0.0 21 22 20 21
@@ -556,10 +610,8 @@ e2e4 b8c6 g1f3 g8f6 b1c3 d7d5 e4e5 f6d7
 9 32.498212167 0.38 2489259 3005126 5737465 6757553
 e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1e2 g8f6 b1c3
 9 60.032104167 0.0 1997824 5002950 7200725 13958278
-'''
 
-
-''' Late move reductions!!!
+Late move reductions!!!
 1 0.28811379200000076 0.44 1 1 2 2
 b1c3
 2 0.2882701670000003 0.0 22 23 21 23
@@ -584,9 +636,8 @@ e2e4 e7e5 b1c3 g8f6 g1f3 b8c6 f1b5 d7d6 b5c6 b7c6 e1g1
 g1f3 g8f6 d2d4 d7d5 e2e3 c8e6 b1c3 b8d7 f1b5 a7a6 b5d3
 11 60.000863417000005 0.0 138240 5085886 101753 18992956
 b1c3
-'''
 
-''' Null move pruning!!! -- probably has even more effect in tactical positions
+Null move pruning!!! -- probably has even more effect in tactical positions
 1 0.35565758399999936 0.44 1 1 2 2
 b1c3
 2 0.3558044169999999 0.0 22 23 21 23
@@ -611,9 +662,8 @@ d2d4 g8f6 b1c3 b8c6 e2e4 d7d5 e4e5 f6e4 g1e2 e7e6
 g1f3 g8f6 d2d4 d7d5 b1d2 e7e6 e2e3 b8d7 f1b5 a7a6 b5d3
 11 60.017434709 0.0 824320 4112356 4571589 19602851
 b1c3 e7e5
-'''
 
-''' Aspiration Windows !! -- Also included Q nodes in node count since that is the standard
+Aspiration Windows !! -- Also included Q nodes in node count since that is the standard
 info depth 1 score cp 44 time 0 nodes 3 nps 10 pv b1c3
 info depth 2 score cp 0 time 0 nodes 43 nps 161 pv b1c3 g8f6
 info depth 3 score cp 44 time 0 nodes 127 nps 607 pv b1c3 g8f6 g1f3
@@ -627,9 +677,8 @@ info depth 10 score cp 23 time 12 nodes 4363782 nps 399351 pv e2e4 e7e5 b1c3 d7d
 info depth 11 score cp 16 time 59 nodes 18906158 nps 399146 pv d2d4 d7d5 g1f3 e7e6 e2e3 b8c6 b1d2 g8f6 f1b5 a7a6 b5d3
 info depth 11 score cp 0 time 60 nodes 30721 nps 399191 pv b1c3
 bestmove d2d4
-'''
 
-''' History moves fixed to be HH += depth * depth instead of HH += depth
+History moves fixed to be HH += depth * depth instead of HH += depth
 info depth 1 score cp 44 time 883 nodes 11 nps 12 pv b1c3
 info depth 2 score cp 0 time 883 nodes 51 nps 70 pv b1c3 g8f6
 info depth 3 score cp 44 time 884 nodes 141 nps 229 pv b1c3 g8f6 g1f3
@@ -643,9 +692,9 @@ info depth 10 score cp 27 time 7272 nodes 1974641 nps 352908 pv e2e4 b8c6 d2d4 d
 info depth 11 score cp 15 time 52360 nodes 17602321 nps 385188 pv g1f3 g8f6 d2d4 d7d5 b1d2 e7e6 e2e3 b8d7 f1b5 a7a6 b5d3
 info depth 11 score cp 15 time 60001 nodes 2907338 nps 384593 pv g1f3 g8f6 d2d4 d7d5 b1d2 e7e6 e2e3 b8d7 f1b5 a7a6 b5d3
 bestmove g1f3
-'''
 
-''' Quiescence search terminal nodes counted since this is the default
+
+Quiescence search terminal nodes counted since this is the default
     PST also hand-tuned to somewhat match PESTO eval
 info depth 1 score cp 94 time 62 nodes 26 nps 418 pv b1c3
 info depth 2 score cp 50 time 62 nodes 86 nps 1801 pv b1c3 g8f6
@@ -660,10 +709,9 @@ info depth 10 score cp 64 time 2026 nodes 802543 nps 736425 pv g1f3 g8f6 b1c3 e7
 info depth 11 score cp 64 time 11688 nodes 7311427 nps 753246 pv b1c3 e7e6 g1f3 d7d5 d2d4 g8f6 e2e3 b8d7 f1b5 a7a6 b5d3
 info depth 11 score cp 64 time 60000 nodes 37037138 nps 764014 pv b1c3 e7e6 g1f3 d7d5 d2d4 g8f6 e2e3 b8d7 f1b5 a7a6 b5d3
 bestmove b1c3
-'''
 
 
-''' LMR full depth moves changed to 3
+LMR full depth moves changed to 3
 info depth 1 score cp 94 time 634 nodes 26 nps 41 pv b1c3
 info depth 2 score cp 50 time 634 nodes 86 nps 176 pv b1c3 g8f6
 info depth 3 score cp 94 time 634 nodes 211 nps 509 pv b1c3 g8f6 g1f3
@@ -677,7 +725,6 @@ info depth 10 score cp 64 time 2566 nodes 802543 nps 581482 pv g1f3 g8f6 b1c3 e7
 info depth 11 score cp 64 time 12071 nodes 7311427 nps 729341 pv b1c3 e7e6 g1f3 d7d5 d2d4 g8f6 e2e3 b8d7 f1b5 a7a6 b5d3
 info depth 12 score cp 65 time 59882 nodes 37513705 nps 773475 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 
     c1g5 f8e7
-    
 info depth 12 score cp 65 time 60001 nodes 1 nps 771947 pv e2e4 e7e6 g1f3 b8c6 b1c3 g8f6 d2d3 d7d5 e4e5 f6d7 c1g5 f8e7
 bestmove e2e4
 
@@ -1226,5 +1273,211 @@ info depth 13 score cp 28 time 16226 nodes 12681408 nps 781541 pv e2e4 e7e6 g1f3
  f8e7 b1c3 e8g8
 info depth 13 score cp 28 time 60000 nodes 45028519 nps 750466 pv e2e4 e7e6 g1f3 d7d5 e4d5 e6d5 f1b5 b8d7 e1g1 g8f6 d2d4
  f8e7 b1c3 e8g8
+bestmove e2e4
+
+Removal of PSTs in move ordering
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 203407 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 262 nps 294692 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 3 nodes 1325 nps 395886 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 6 nodes 2654 nps 437531 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 29 nodes 16150 nps 544355 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 42 nodes 23980 nps 569364 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 134 nodes 80027 nps 596771 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 20 time 258 nodes 158388 nps 611702 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 12 time 1094 nodes 701028 nps 640493 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6
+info depth 11 score cp 22 time 1634 nodes 1062151 nps 650016 pv e2e4 d7d5 e4d5 g8f6 b1c3 f6d5 c3d5 d8d5 d2d4 b8c6 g1f3
+info depth 12 score cp 32 time 3060 nodes 2030084 nps 663311 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 e7e6 c2c4 d5f6 b1c3
+ b8c6
+info depth 13 score cp 29 time 13259 nodes 8880216 nps 669717 pv e2e4 e7e6 g1f3 b8c6
+info depth 13 score cp 29 time 60000 nodes 38603019 nps 643374 pv e2e4 e7e6 g1f3 b8c6
+bestmove e2e4
+
+Reverse Futility margin increased from 100 -> 150
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 235450 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 262 nps 346112 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 2 nodes 1325 nps 465409 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 5 nodes 2793 nps 537839 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 22 nodes 14820 nps 668109 pv g1f3 g8f6 b1c3 b8c6
+info depth 7 score cp 16 time 33 nodes 23994 nps 714896 pv g1f3 g8f6 b1c3 b8c6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 96 nodes 72296 nps 750021 pv b1c3 b8c6 g1f3 g8f6
+info depth 9 score cp 20 time 224 nodes 170376 nps 759068 pv b1c3 b8c6 g1f3 d7d5 e2e4 d5e4 c3e4 g8f6 f3g5
+info depth 10 score cp 12 time 938 nodes 726482 nps 774175 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6
+info depth 11 score cp 22 time 1470 nodes 1159295 nps 788391 pv e2e4 d7d5 e4d5 g8f6 b1c3 f6d5 c3d5 d8d5 d2d4 b8c6 g1f3
+info depth 12 score cp 32 time 2733 nodes 2181641 nps 798232 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 e7e6 c2c4 d5f6 b1c3 
+b8c6
+info depth 13 score cp 33 time 13974 nodes 11229348 nps 803565 pv e2e4 g8f6 b1c3 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 f8b4 d4c6
+ b4c3 b2c3 d7c6
+info depth 13 score cp 33 time 60000 nodes 47093958 nps 784887 pv e2e4 g8f6 b1c3 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 f8b4 d4c6
+ b4c3 b2c3 d7c6
+bestmove e2e4
+
+New implementation of LMR with PVS
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 243942 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 262 nps 357950 pv g1f3 b8c6 b1c3
+info depth 4 score cp 36 time 1 nodes 1032 nps 519630 pv d2d4 b8c6 b1c3
+info depth 5 score cp 8 time 7 nodes 4548 nps 636259 pv b1c3 d7d5 g1f3 g8f6
+info depth 6 score cp 20 time 18 nodes 12809 nps 701139 pv b1c3 b8c6 e2e3 e7e5 g1f3
+info depth 7 score cp 16 time 39 nodes 29380 nps 737635 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 16 time 99 nodes 79235 nps 797004 pv b1c3 g8f6 d2d4 d7d5 e2e3 b8c6 g1f3
+info depth 9 score cp 14 time 207 nodes 168941 nps 812786 pv b1c3 g8f6 e2e4 b8c6 g1f3 d7d5 e4e5 f6g4
+info depth 10 score cp 25 time 589 nodes 492122 nps 834874 pv e2e4 b8c6 b1c3 e7e5 g1e2 g8f6 d2d4
+info depth 11 score cp 22 time 1713 nodes 1457115 nps 850391 pv e2e4 e7e5 b1c3 g8f6 g1f3 b8c6
+info depth 12 score cp 29 time 3794 nodes 3210531 nps 846169 pv e2e4 b8c6
+info depth 13 score cp 28 time 8952 nodes 7574085 nps 845997 pv e2e4 g8f6 e4e5 f6d5 d2d4 b8c6 c2c4 d5b6 g1f3 d7d5 b1d2
+ e7e6 f1e2
+info depth 13 score cp 28 time 60000 nodes 49078424 nps 817964 pv e2e4 g8f6 e4e5 f6d5 d2d4 b8c6 c2c4 d5b6 g1f3 d7d5 b1d2
+ e7e6 f1e2
+bestmove e2e4
+
+crazy LMR
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 252362 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 460 nps 519768 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 2 nodes 1591 nps 578562 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 8 time 6 nodes 4050 nps 624611 pv g1f3 d7d5 b1c3 g8f6
+info depth 6 score cp 22 time 15 nodes 10477 nps 675537 pv g1f3 d7d5 e2e3 g8f6 b1c3
+info depth 7 score cp 16 time 34 nodes 25531 nps 744994 pv g1f3 d7d5 b1c3 g8f6 d2d4 b8c6 e2e3
+info depth 8 score cp 8 time 75 nodes 58735 nps 780854 pv e2e3 b8c6 g1f3 d7d6 b1c3 g8f6
+info depth 9 score cp 13 time 198 nodes 161906 nps 813854 pv b1c3 g8f6 g1f3 d7d5 d2d4 b8c6 e2e3
+info depth 10 score cp 27 time 347 nodes 282638 nps 814354 pv e2e4 d7d5 e4d5 d8d5 b1c3 d5e6 g1e2 g8f6 d2d4 b8c6
+info depth 11 score cp 22 time 608 nodes 502852 nps 825827 pv e2e4 d7d5 e4d5 g8f6 b1c3 f6d5 c3d5 d8d5 d2d4 b8c6 g1f3
+info depth 12 score cp 24 time 1436 nodes 1204456 nps 838635 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1f3 c8f5 b1c3 d5e6 c1e3
+ g8f6
+info depth 13 score cp 32 time 2618 nodes 2185385 nps 834575 pv e2e4 b8c6 b1c3 e7e6 d2d4 d7d5 e4e5 f8b4 g1e2 g8e7 a2a3
+ b4a5
+info depth 14 score cp 30 time 4905 nodes 4063341 nps 828314 pv e2e4 b8c6 d2d4 e7e6 g1f3 g8f6 b1d2 d7d5 e4e5 f6d7 f1b5
+ f8b4
+info depth 15 score cp 29 time 12103 nodes 9958208 nps 822736 pv e2e4 e7e6 d2d4 d7d5 b1c3 b8c6 g1e2 g8e7 e4e5 c8d7 c1g5
+info depth 15 score cp 29 time 60000 nodes 47958193 nps 799296 pv e2e4 e7e6 d2d4 d7d5 b1c3 b8c6 g1e2 g8e7 e4e5 c8d7 c1g5
+bestmove e2e4
+
+FREE ROBUX
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 238775 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 365 nps 414658 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 3 nodes 1569 nps 484671 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 6 nodes 3313 nps 549781 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 29 nodes 18877 nps 640825 pv g1f3 b8c6 b1c3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 39 nodes 25947 nps 653603 pv g1f3 b8c6 b1c3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 87 nodes 62845 nps 715024 pv b1c3 b8c6 g1f3
+info depth 9 score cp 28 time 270 nodes 202779 nps 748658 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 12 time 509 nodes 387624 nps 760993 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4 b8c6 c2c4 d5f6
+info depth 11 score cp 34 time 1324 nodes 998604 nps 753801 pv e2e4 b8c6 d2d4 e7e6 b1c3 d7d5 g1f3 g8e7 e4e5 c8d7 c1g5
+info depth 12 score cp 32 time 2001 nodes 1522649 nps 760601 pv e2e4 b8c6 d2d4 e7e6 b1c3 d7d5 g1f3 g8e7 e4e5 c8d7 c1g5
+ a8c8
+info depth 13 score cp 33 time 2900 nodes 2214898 nps 763695 pv e2e4 b8c6 d2d4 e7e6 g1f3 d7d5 e4e5 c8d7 b1c3 f8b4 f1d3
+ b4c3 b2c3 g8e7
+info depth 14 score cp 35 time 33619 nodes 24820437 nps 738279 pv e2e4 b8c6 d2d4 e7e6 g1f3 g8f6 d4d5 e6d5 e4d5 c6b4 b1c3
+ d7d6 f1b5 c8d7 d1e2
+bestmove e2e4
+
+checking material draws and reforming eval for future. rip nps ;C
+info depth 1 score cp 42 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 129 nps 237101 pv g1f3 b8c6
+info depth 3 score cp 42 time 0 nodes 365 nps 408245 pv g1f3 b8c6 b1c3
+info depth 4 score cp 6 time 3 nodes 1569 nps 484992 pv g1f3 b8c6 b1c3 e7e5
+info depth 5 score cp 36 time 6 nodes 3309 nps 548575 pv g1f3 b8c6 b1c3 e7e5 e2e4
+info depth 6 score cp 2 time 32 nodes 20373 nps 631404 pv g1f3 b8c6 b1c3 g8f6 e2e4 e7e5
+info depth 7 score cp 16 time 43 nodes 27535 nps 638120 pv g1f3 b8c6 b1c3 g8f6 d2d4 d7d5 e2e3
+info depth 8 score cp 14 time 98 nodes 65512 nps 666307 pv b1c3 b8c6 g1f3
+info depth 9 score cp 23 time 170 nodes 114556 nps 671024 pv b1c3 b8c6 e2e4 g8f6 g1f3 d7d5
+info depth 10 score cp 23 time 252 nodes 170313 nps 673301 pv b1c3 b8c6 e2e4 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4 d5e4
+info depth 11 score cp 18 time 1459 nodes 1012376 nps 693433 pv e2e4 d7d5 e4d5 g8f6 f1b5 c8d7 b5c4 b7b5 c4b3 d7g4 f2f3
+ g4f5
+info depth 12 score cp 21 time 1861 nodes 1298897 nps 697858 pv e2e4 d7d5 e4d5 g8f6 f1b5 c8d7 b5c4 d7g4 f2f3 g4f5 b1c3
+ c7c6 d5c6
+info depth 13 score cp 29 time 5742 nodes 4011291 nps 698534 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 g1f3 b8c6 e4e5 c8d7 c1g5
+ h7h6 g5f4
+info depth 13 score cp 29 time 60001 nodes 41132264 nps 685517 pv e2e4 e7e6 b1c3 d7d5 d2d4 g8e7 g1f3 b8c6 e4e5 c8d7 c1g5
+ h7h6 g5f4
+bestmove e2e4
+
+King tropism stuff and king safety stuff
+info depth 1 score cp 54 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 88 nps 175928 pv b1c3 g8f6
+info depth 3 score cp 53 time 0 nodes 378 nps 408094 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 3 nodes 1595 nps 456337 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 41 time 6 nodes 3343 nps 528696 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 1 time 22 nodes 13657 nps 596366 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 18 time 32 nodes 20238 nps 614725 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 c1g5
+info depth 8 score cp 11 time 79 nodes 50408 nps 633996 pv b1c3 b8c6 g1f3 g8f6 e2e4 d7d5 e4e5 f6g4
+info depth 9 score cp 21 time 181 nodes 118775 nps 654028 pv b1c3 d7d5 e2e4 d5e4 c3e4 b8c6 g1f3
+info depth 10 score cp 22 time 1089 nodes 732285 nps 671837 pv g1f3 g8f6 b1c3 d7d5 e2e3 b8c6
+info depth 11 score cp 16 time 1683 nodes 1124737 nps 667939 pv e2e4 d7d5 e4e5 d5d4 g1f3 b8c6 d2d3 c8g4 d1e2 e7e6 b1d2
+info depth 12 score cp 27 time 2806 nodes 1869697 nps 666121 pv e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 c2c4 d5f6 b1c3 b8c6 g1f3
+ c8g4
+info depth 13 score cp 35 time 4951 nodes 3290422 nps 664483 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 e4e5 f6e4 c3e4 d5e4 g1e2
+ c8g4 c1e3
+info depth 14 score cp 36 time 7844 nodes 5206446 nps 663735 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1f3 c8g4 b1c3 d5e6 c1e3
+ e8c8 d4d5 e6f6 f1b5
+info depth 15 score cp 22 time 21191 nodes 14075016 nps 664191 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 a2a3 b4c3 d2c3 e8g8 f1c4
+ f6e4 c4d5 e4f6 f3e5
+info depth 15 score cp 22 time 60001 nodes 39633108 nps 660536 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 a2a3 b4c3 d2c3 e8g8 f1c4
+ f6e4 c4d5 e4f6 f3e5
+bestmove e2e4
+
+info depth 1 score cp 54 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 88 nps 169233 pv b1c3 g8f6
+info depth 3 score cp 53 time 0 nodes 378 nps 387261 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 3 nodes 1550 nps 454659 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 41 time 6 nodes 3221 nps 516925 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 1 time 22 nodes 12875 nps 573010 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 18 time 32 nodes 19157 nps 581061 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 c1g5
+info depth 8 score cp 11 time 110 nodes 66753 nps 603803 pv e2e4 b8c6 b1c3 g8f6
+info depth 9 score cp 26 time 153 nodes 93834 nps 610771 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4
+info depth 10 score cp 10 time 495 nodes 306501 nps 618898 pv e2e4 d7d5 e4e5 d5d4 g1f3 b8c6 f1b5 d8d5 c2c4 d5c5
+info depth 11 score cp 29 time 1184 nodes 742958 nps 627410 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 f1b5 a7a6 b5c6
+info depth 12 score cp 29 time 1435 nodes 906250 nps 631469 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 e4e5 f6e4 c3e4 d5e4 g1e2
+ c8g4
+info depth 13 score cp 35 time 2332 nodes 1481470 nps 635151 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 e4e5 f6e4 c3e4 d5e4 g1e2
+ c8g4 c1e3
+info depth 14 score cp 38 time 4219 nodes 2723830 nps 645467 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1f3 d5e4 f1e2 c8f5 b1c3
+ e4c2 d1c2 f5c2
+info depth 14 score cp 38 time 60000 nodes 36682755 nps 611369 pv e2e4 b8c6 d2d4 d7d5 e4d5 d8d5 g1f3 d5e4 f1e2 c8f5 b1c3
+ e4c2 d1c2 f5c2
+bestmove e2e4
+
+info depth 1 score cp 54 time 0 nodes 26 nps 260000 pv b1c3
+info depth 2 score cp 8 time 0 nodes 88 nps 178913 pv b1c3 g8f6
+info depth 3 score cp 53 time 0 nodes 378 nps 405174 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 3 nodes 1571 nps 476515 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 41 time 6 nodes 3258 nps 530351 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 1 time 22 nodes 13016 nps 572434 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 18 time 33 nodes 19294 nps 579678 pv b1c3 b8c6 g1f3 g8f6 d2d4 d7d5 c1g5
+info depth 8 score cp 11 time 114 nodes 67331 nps 588392 pv e2e4 b8c6 b1c3 g8f6
+info depth 9 score cp 26 time 160 nodes 94592 nps 591189 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 c3e4
+info depth 10 score cp 10 time 520 nodes 308014 nps 592079 pv e2e4 d7d5 e4e5 d5d4 g1f3 b8c6 f1b5 d8d5 c2c4 d5c5
+info depth 11 score cp 29 time 1310 nodes 789780 nps 602608 pv e2e4 b8c6 b1c3 g8f6 g1f3 d7d5 e4e5 f6e4 f1b5 a7a6 b5c6
+info depth 12 score cp 29 time 1591 nodes 964666 nps 606182 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 e4e5 f6e4 c3e4 d5e4 g1e2
+ c8g4
+info depth 13 score cp 35 time 2844 nodes 1733482 nps 609443 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 e4e5 f6e4 c3e4 d5e4 g1e2
+ c8g4 c1e3
+info depth 14 score cp 27 time 13669 nodes 8128351 nps 594654 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 a2a3 b4c3 d2c3 e8g8 f1d3
+ d7d5 e1g1 d5e4
+info depth 14 score cp 27 time 60000 nodes 35792898 nps 596540 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 a2a3 b4c3 d2c3 e8g8 f1d3
+ d7d5 e1g1 d5e4
+bestmove e2e4
+
+LMR improvements
+info depth 1 score cp 54 time 0 nodes 21 nps 196608 pv b1c3
+info depth 2 score cp 8 time 0 nodes 82 nps 142651 pv b1c3 g8f6
+info depth 3 score cp 53 time 1 nodes 275 nps 256775 pv b1c3 b8c6 g1f3
+info depth 4 score cp 8 time 3 nodes 1219 nps 321644 pv b1c3 b8c6 g1f3 g8f6
+info depth 5 score cp 41 time 6 nodes 2293 nps 375362 pv b1c3 b8c6 g1f3 g8f6 e2e4
+info depth 6 score cp 1 time 16 nodes 6897 nps 428678 pv b1c3 b8c6 g1f3 g8f6 e2e4 e7e5
+info depth 7 score cp 18 time 28 nodes 12917 nps 459816 pv b1c3 g8f6 g1f3 d7d5 d2d4 b8c6 c1g5
+info depth 8 score cp 3 time 59 nodes 30915 nps 523416 pv e2e4 g8f6 b1c3 e7e6
+info depth 9 score cp 26 time 126 nodes 65746 nps 519509 pv e2e4 b8c6 b1c3 g8f6
+info depth 10 score cp 25 time 244 nodes 134603 nps 550526 pv e2e4 d7d5 e4d5 g8f6 g1f3 f6d5 d2d4
+info depth 11 score cp 20 time 539 nodes 311258 nps 576836 pv e2e4 b8c6 b1c3 g8f6 d2d4 d7d5 f1b5 d5e4
+info depth 12 score cp 27 time 1018 nodes 601283 nps 590314 pv e2e4 b8c6 d2d4 g8f6 b1c3 f6e4 c3e4 c6d4
+info depth 13 score cp 28 time 2487 nodes 1484696 nps 596813 pv e2e4 b8c6 g1f3 g8f6 e4e5 f6g4 d2d4 g4f6
+info depth 14 score cp 49 time 5101 nodes 3125994 nps 612752 pv e2e4 e7e5 b1c3 g8f6 g1f3 b8c6 d2d4 f8d6 d4e5 c6e5 c1f4
+ e5f3
+info depth 15 score cp 36 time 29248 nodes 17511637 nps 598711 pv e2e4 e7e5 b1c3 g8f6 g1f3 f8b4 f3e5 d8e7 e5d3 b4c3 d2c3
+ e7e4 c1e3 g7g5 a2a3
 bestmove e2e4
 '''

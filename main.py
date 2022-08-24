@@ -9,11 +9,11 @@ import time
 
 from cache_clearer import kill_numba_cache
 from move import get_move_from_uci, get_is_capture
-from position import make_move, parse_fen, is_attacked
+from position import make_move, parse_fen, is_attacked, make_readable_board
 from position_class import init_position, PositionStruct_set_side
 from search import iterative_search, compile_engine, new_game
 from search_class import init_search, SearchStruct_set_max_time, SearchStruct_set_max_depth,\
-    SearchStruct_set_repetition_index
+    SearchStruct_set_repetition_index, SearchStruct_set_stopped
 from utilities import NO_MOVE
 
 
@@ -120,7 +120,11 @@ def main():
         tokens = msg.split()
 
         if msg == "quit":
+            SearchStruct_set_stopped(main_engine, True)
             break
+
+        if msg == "stop":
+            SearchStruct_set_stopped(main_engine, True)
 
         elif msg == "uci" or msg.startswith("uciok"):
             print("id name AntaresPy2.26")
@@ -150,6 +154,7 @@ def main():
             elif tokens[1] == "fen":
                 fen = " ".join(tokens[2:8])
                 parse_fen(main_position, fen)
+                print(make_readable_board(main_position))
                 next_idx = 8
 
             else:
@@ -169,9 +174,16 @@ def main():
 
                 PositionStruct_set_side(main_position, main_position.side ^ 1)
 
+            print(make_readable_board(main_position))
+
         if msg.startswith("go"):
             parse_go(main_engine, main_position, msg, last_move)
+
+            # search_thread = threading.Thread(target=iterative_search, args=(main_engine, main_position, False))
+            # search_thread.start()
+
             iterative_search(main_engine, main_position, False)
+
             continue
 
     # f.close()

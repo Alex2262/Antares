@@ -127,7 +127,7 @@ def main():
             SearchStruct_set_stopped(main_engine, True)
 
         elif msg == "uci" or msg.startswith("uciok"):
-            print("id name AntaresPy2.26")
+            print("id name AntaresPy0.47")
             print("id author Alexander_Tian")
             print("uciok")
             continue
@@ -154,7 +154,6 @@ def main():
             elif tokens[1] == "fen":
                 fen = " ".join(tokens[2:8])
                 parse_fen(main_position, fen)
-                print(make_readable_board(main_position))
                 next_idx = 8
 
             else:
@@ -173,8 +172,6 @@ def main():
                 main_engine.repetition_table[main_engine.repetition_index] = main_position.hash_key
 
                 PositionStruct_set_side(main_position, main_position.side ^ 1)
-
-            print(make_readable_board(main_position))
 
         if msg.startswith("go"):
             parse_go(main_engine, main_position, msg, last_move)

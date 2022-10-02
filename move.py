@@ -1,7 +1,5 @@
 
-import numba as nb
 from utilities import *
-from position_class import Position
 
 """
            Binary move bits                Meaning          Hexadecimal

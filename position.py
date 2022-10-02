@@ -80,11 +80,11 @@ def is_attacked(position, pos):
                 while True:
                     new_pos += increment
                     occupied = board[new_pos]
-                    if occupied == PADDING or occupied < 6:  # standing on own piece or outside of board
+                    if occupied == PADDING or occupied < BLACK_PAWN:  # standing on own piece or outside of board
                         break
 
                     if occupied < EMPTY:
-                        if piece == occupied - 6:
+                        if piece == occupied - BLACK_PAWN:
                             return True
 
                         if piece == WHITE_KNIGHT:  # if we are checking with knight and opponent piece is not knight

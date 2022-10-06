@@ -84,47 +84,47 @@ class PositionStruct(structref.StructRefProxy):
         return PositionStruct_get_hash_key(self)
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_board(self):
     return self.board
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_white_pieces(self):
     return self.white_pieces
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_black_pieces(self):
     return self.black_pieces
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_king_positions(self):
     return self.king_positions
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_castle_ability_bits(self):
     return self.castle_ability_bits
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_ep_square(self):
     return self.ep_square
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_side(self):
     return self.side
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_get_hash_key(self):
     return self.hash_key
 
 
-@njit
+@njit(cache=True)
 def PositionStruct_set_side(position, s):
     position.side = s
 

@@ -14,7 +14,9 @@ from move_generator import *
 from position import *
 from transposition import *
 
-from search_class import SearchStruct_set_max_depth, SearchStruct_set_max_time
+from position_class import PositionStruct_set_side
+from search_class import SearchStruct_set_max_depth, SearchStruct_set_max_time, SearchStruct_set_start_time, \
+                         SearchStruct_set_current_search_depth
 
 
 # @nb.njit(nb.float64(), cache=True)
@@ -423,14 +425,14 @@ def negamax(engine, position, alpha, beta, depth, do_null):
 
 # An iterative search approach to negamax
 # @nb.njit(nb.void(Search.class_type.instance_type, Position.class_type.instance_type, nb.boolean), cache=True)
-@nb.njit(cache=False)
+# @nb.njit(cache=False)
 def iterative_search(engine, position, compiling):
 
-    engine.start_time = get_time()
+    # engine.start_time = get_time()
+    SearchStruct_set_start_time(engine, get_time())
 
     # Reset engine variables
     reset_search(engine)
-    engine.stopped = False
 
     original_side = position.side
 
@@ -450,7 +452,8 @@ def iterative_search(engine, position, compiling):
     while running_depth <= engine.max_depth:
 
         # Reset engine variables
-        engine.current_search_depth = running_depth
+        # engine.current_search_depth = running_depth
+        SearchStruct_set_current_search_depth(engine, running_depth)
 
         # Negamax search
         returned = negamax(engine, position, alpha, beta, running_depth, False)
@@ -469,9 +472,11 @@ def iterative_search(engine, position, compiling):
         pv_line = []
         for c in range(engine.pv_length[0]):
             pv_line.append(get_uci_from_move(engine.pv_table[0][c]))
-            position.side ^= 1
+            # position.side ^= 1
+            PositionStruct_set_side(position, position.side ^ 1)
 
-        position.side = original_side
+        # position.side = original_side
+        PositionStruct_set_side(position, original_side)
 
         best_pv = pv_line if not engine.stopped and len(pv_line) else best_pv
         best_score = returned if not engine.stopped else best_score

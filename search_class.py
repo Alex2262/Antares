@@ -145,42 +145,42 @@ class SearchStruct(structref.StructRefProxy):
         return SearchStruct_get_stopped(self)
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_max_depth(self):
     return self.max_depth
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_max_qdepth(self):
     return self.max_qdepth
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_min_depth(self):
     return self.min_depth
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_current_search_depth(self):
     return self.current_search_depth
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_ply(self):
     return self.ply
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_max_time(self):
     return self.max_time
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_start_time(self):
     return self.start_time
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_node_count(self):
     return self.node_count
 
@@ -190,56 +190,65 @@ def SearchStruct_get_pv_table(self):
     return self.pv_table
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_pv_length(self):
     return self.pv_length
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_killer_moves(self):
     return self.killer_moves
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_history_moves(self):
     return self.history_moves
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_transposition_table(self):
     return self.transposition_table
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_repetition_table(self):
     return self.repetition_table
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_repetition_index(self):
     return self.repetition_index
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_get_stopped(self):
     return self.stopped
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_set_max_time(engine, t):
     engine.max_time = t
 
 
-@njit
+@njit(cache=True)
+def SearchStruct_set_start_time(engine, t):
+    engine.start_time = t
+
+
+@njit(cache=True)
 def SearchStruct_set_max_depth(engine, d):
     engine.max_depth = d
 
 
-@njit
+@njit(cache=True)
 def SearchStruct_set_repetition_index(engine, r):
     engine.repetition_index = r
 
-@njit
+@njit(cache=True)
+def SearchStruct_set_current_search_depth(engine, d):
+    engine.current_search_depth = d
+
+@njit(cache=True)
 def SearchStruct_set_stopped(engine, s):
     engine.stopped = s
 

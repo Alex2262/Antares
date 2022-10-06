@@ -1,7 +1,11 @@
 # Antares
 Antares is a chess engine written in python and partially JIT compiled using Numba. My goal is to make the strongest traditional (minimax) python engine,
-and I aim for this engine to reach a rating of 2200.
+and I aim for this engine to reach a rating of 2200. Antares uses the UCI protocol.
 
+## Download
+There is a release for windows in the dist folder. *NOTE: Antares doesn't work with Cutechess due to long initialization times. When first opening Antares,
+it takes around 20-45 seconds to initialize, meaning responding with readyok after receiving uci isready command. Subsequently, it will take 10-15 seconds to
+initialize as functions are cached. The reason for this initialization time is due to using Numba, a JIT compiler.*
 ## Lichess
 You can play Antares [here](https://lichess.org/@/AntaresPy)
 
